@@ -184,7 +184,7 @@ export async function listLifeItems(userId: string): Promise<LifeItem[]> {
     collectionId: appwriteConfig.actionsCollectionId,
     queries: [Query.equal("userId", [userId]), Query.orderDesc("createdAt"), Query.limit(50)],
   });
-  return result.documents as unknown as LifeItem[];
+  return result.documents.map((document) => ({ ...document, id: document.$id })) as unknown as LifeItem[];
 }
 
 export async function listLifeThreads(userId: string): Promise<LifeThread[]> {

@@ -64,6 +64,7 @@ test("keeps real workspaces free of demo state and persists production flows", a
   assert.match(app, /deleteLifeThread/);
   assert.match(app, /status: "completed"/);
   assert.match(client, /LifeItemUpdate/);
+  assert.match(client, /id: document\.\$id/);
   assert.match(client, /responseStatusCode >= 400/);
   assert.match(orchestrator, /gpt-5\.6-luna/);
   assert.match(orchestrator, /parseModelJson/);
