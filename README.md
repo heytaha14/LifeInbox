@@ -117,7 +117,7 @@ The dated commit history provides submission-period implementation evidence. The
 ### Demo UI
 
 ```bash
-git clone https://github.com/heytaha14/lifeinbox.git
+git clone https://github.com/heytaha14/LifeInbox.git
 cd lifeinbox
 npm install
 npm run dev

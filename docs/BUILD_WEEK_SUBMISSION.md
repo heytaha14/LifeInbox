@@ -8,8 +8,8 @@ This file is a working submission checklist and demo script. Replace the two mar
 - **Tagline:** Turn life admin into clear, connected next steps with GPT-5.6.
 - **Category:** Apps for Your Life
 - **Live project:** https://lifeinbox-calm.explorertaha.chatgpt.site/
-- **Code:** https://github.com/heytaha14/lifeinbox
-- **Devpost draft:** https://devpost.com/software/1329979
+- **Code:** https://github.com/heytaha14/LifeInbox
+- **Devpost draft:** https://devpost.com/software/lifeinbox
 - **License:** MIT
 
 ## Suggested Devpost write-up
@@ -103,7 +103,8 @@ End on the Today screen and LifeInbox logo.
 - [x] Working project built with Codex and GPT-5.6
 - [x] Apps for Your Life category selected in this pack
 - [x] English project description prepared
-- [x] Public code repository planned with MIT license and complete README
+- [x] Public code repository published with MIT license and complete README
+- [x] Devpost project identity, write-up, links, technologies, and thumbnail completed
 - [x] Free live testing URL available
 - [x] Setup, sample-data, security, and judge test paths documented
 - [x] Codex collaboration and key decisions documented
