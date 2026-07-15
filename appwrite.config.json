@@ -15,6 +15,9 @@
       "entrypoint": "src/main.js",
       "commands": "npm install",
       "path": "functions/ai-orchestrator",
+      "buildSpecification": "s-2vcpu-2gb",
+      "runtimeSpecification": "s-0.5vcpu-512mb",
+      "deploymentRetention": 0,
       "scopes": ["databases.read", "collections.read", "documents.read", "documents.write", "files.read"]
     },
     {
