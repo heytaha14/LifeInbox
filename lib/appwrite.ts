@@ -77,6 +77,7 @@ export async function saveLifeItem(item: LifeItem, userId: string) {
     type: item.type,
     title: item.title,
     summary: item.summary,
+    content: item.content,
     dueLabel: item.dueLabel,
     dueDate: item.dueDate,
     time: item.time,

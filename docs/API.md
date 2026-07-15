@@ -11,6 +11,7 @@ Request body:
   "route": "extract",
   "source": "text",
   "input": "Renew insurance Friday at 5 PM, then email the receipt to Maya",
+  "captureIntent": "organize",
   "localDate": "2026-07-15",
   "timezone": "Asia/Calcutta"
 }
@@ -72,11 +73,13 @@ The function decomposes the capture into as many as 20 independent, source-groun
 
 Low-confidence items or items with entries in `missingFields` are marked `needsReview`. The client always presents the full batch for editable review before any action documents are saved.
 
+Set `captureIntent` to `note` when the user explicitly chooses **Save as note**. The function then returns exactly one `type: "note"` item with a faithful `content` body (up to 10,000 characters). Text, transcripts, and embedded PDF text are copied into the durable body without model paraphrasing; image and scanned-file notes use a grounded model transcription. Notes remain saved until the owning user deletes them.
+
 ## `POST /ask`
 
 Request body: `{ "route": "ask", "question": "What is due this week?" }`.
 
-Returns `{ answer, nextActions, insights, citations, model, reasoningEffort }`. Terra uses high reasoning over a bounded, permissioned record set and a strict output schema. Every citation and non-null `nextActions[].itemId` is validated against an Appwrite action document included in the model context. The client renders the plan and resolves source IDs to clickable chips.
+Returns `{ answer, nextActions, insights, citations, model, reasoningEffort }`. Terra uses high reasoning over a bounded, permissioned record set and a strict output schema. Notes are available as reference knowledge but are not treated as unfinished actions. Every citation and non-null `nextActions[].itemId` is validated against an Appwrite document included in the model context. The client renders the plan and resolves source IDs to clickable chips.
 
 ## `POST /today-brief`
 

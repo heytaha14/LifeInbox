@@ -17,7 +17,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     metadataBase: new URL(base),
     title: { default: "LifeInbox - Drop it in. Know what matters next.", template: "%s | LifeInbox" },
-    description: "Drop text, images, PDFs, or voice. LifeInbox separates every action, verifies the details, and organizes your next steps with AI.",
+    description: "Drop text, images, PDFs, or voice. LifeInbox organizes every action or preserves the information as a permanent note with AI.",
     applicationName: "LifeInbox",
     manifest: "/manifest.webmanifest",
     appleWebApp: { capable: true, statusBarStyle: "default", title: "LifeInbox" },
@@ -27,7 +27,7 @@ export async function generateMetadata(): Promise<Metadata> {
     },
     openGraph: {
       title: "LifeInbox - Drop it in. LifeInbox handles the rest.",
-      description: "One capture becomes accurate, atomic actions organized into calm Life Threads.",
+      description: "One capture becomes accurate actions or a permanent note in a calm personal workspace.",
       type: "website",
       images: [{ url: `${base}/og.png`, width: 1200, height: 630, alt: "LifeInbox turns a compound capture into organized actions" }],
     },

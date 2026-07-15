@@ -60,6 +60,7 @@ const collections = [
       { key: "type", type: "string", size: 16, required: true },
       { key: "title", type: "string", size: 256, required: true },
       { key: "summary", type: "string", size: 2048, required: true },
+      { key: "content", type: "string", size: 10000, required: false },
       { key: "dueLabel", type: "string", size: 128, required: false },
       { key: "dueDate", type: "string", size: 32, required: false },
       { key: "time", type: "string", size: 16, required: false },
@@ -139,33 +140,60 @@ async function createOrKeep(label, create) {
   }
 }
 
-await createOrKeep("database", () => databases.create({ databaseId: ids.database, name: "LifeInbox", enabled: true }));
-for (const collection of collections) {
-  await createOrKeep(`collection ${collection.id}`, () => databases.createCollection({
-    databaseId: ids.database,
-    collectionId: collection.id,
-    name: collection.name,
-    permissions: userCreate,
-    documentSecurity: true,
-    enabled: true,
-    attributes: collection.attributes,
-    indexes: collection.indexes.map((index) => ({ ...index, type: index.type === "fulltext" ? IndexType.Fulltext : index.type === "unique" ? IndexType.Unique : IndexType.Key })),
-  }));
+async function getOrCreate(label, get, create) {
+  try { await get(); console.log(`Kept existing ${label}`); }
+  catch (error) {
+    if (error?.code !== 404) throw error;
+    await create();
+    console.log(`Created ${label}`);
+  }
 }
 
-await createOrKeep("storage bucket", () => storage.createBucket({
-  bucketId: ids.bucket,
-  name: "LifeInbox Files",
-  permissions: [Permission.create(Role.users())],
-  fileSecurity: true,
-  enabled: true,
-  maximumFileSize: 10 * 1024 * 1024,
-  allowedFileExtensions: ["pdf", "png", "jpg", "jpeg", "webp", "heic", "m4a", "mp3", "wav", "ogg"],
-  compression: Compression.Gzip,
-  encryption: true,
-  antivirus: true,
-  transformations: true,
+await getOrCreate("database", () => databases.get({ databaseId: ids.database }), () => databases.create({ databaseId: ids.database, name: "LifeInbox", enabled: true }));
+for (const collection of collections) {
+  await getOrCreate(
+    `collection ${collection.id}`,
+    () => databases.getCollection({ databaseId: ids.database, collectionId: collection.id }),
+    () => databases.createCollection({
+      databaseId: ids.database,
+      collectionId: collection.id,
+      name: collection.name,
+      permissions: userCreate,
+      documentSecurity: true,
+      enabled: true,
+      attributes: collection.attributes,
+      indexes: collection.indexes.map((index) => ({ ...index, type: index.type === "fulltext" ? IndexType.Fulltext : index.type === "unique" ? IndexType.Unique : IndexType.Key })),
+    }),
+  );
+}
+
+// Existing Appwrite collections are preserved above, so evolve optional fields
+// explicitly as an idempotent production migration.
+await createOrKeep("attribute actions.content", () => databases.createStringAttribute({
+  databaseId: ids.database,
+  collectionId: ids.actions,
+  key: "content",
+  size: 10000,
+  required: false,
 }));
+
+await getOrCreate(
+  "storage bucket",
+  () => storage.getBucket({ bucketId: ids.bucket }),
+  () => storage.createBucket({
+    bucketId: ids.bucket,
+    name: "LifeInbox Files",
+    permissions: [Permission.create(Role.users())],
+    fileSecurity: true,
+    enabled: true,
+    maximumFileSize: 10 * 1024 * 1024,
+    allowedFileExtensions: ["pdf", "png", "jpg", "jpeg", "webp", "heic", "m4a", "mp3", "wav", "ogg"],
+    compression: Compression.Gzip,
+    encryption: true,
+    antivirus: true,
+    transformations: true,
+  }),
+);
 
 console.log("LifeInbox Appwrite resources are ready.");
 console.log("Next: add a Web platform for localhost and your production domain, then deploy the two functions in appwrite.config.json.");

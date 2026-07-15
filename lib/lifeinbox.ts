@@ -7,6 +7,8 @@ export type LifeItem = {
   type: ItemType;
   title: string;
   summary: string;
+  /** Full durable note body. Tasks may leave this unset. */
+  content?: string;
   dueLabel?: string;
   dueDate?: string;
   time?: string;
@@ -108,4 +110,24 @@ export function makeDrafts(input: string, source: LifeItem["source"]): LifeItem[
     const draft = makeDraft(part, source);
     return { ...draft, id: `${draft.id}-${index + 1}`, sourceExcerpt: part };
   });
+}
+
+export function makeNoteDraft(input: string, source: LifeItem["source"]): LifeItem {
+  const content = input.trim() || (source === "voice" ? "Recorded voice note" : "Untitled note");
+  const firstLine = content.split(/\r?\n/).find((line) => line.trim())?.trim() || "Untitled note";
+  const title = firstLine.length > 72 ? `${firstLine.slice(0, 69)}...` : firstLine.replace(/[.!]$/, "");
+  return {
+    id: `li-${Date.now()}`,
+    type: "note",
+    title,
+    summary: content.length > 220 ? `${content.slice(0, 217)}...` : content,
+    content,
+    priority: "low",
+    confidence: source === "text" ? 100 : 62,
+    status: "inbox",
+    source,
+    createdAt: new Date().toISOString(),
+    missingFields: source === "text" ? [] : ["AI verification"],
+    sourceExcerpt: content.slice(0, 600),
+  };
 }

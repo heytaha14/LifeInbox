@@ -74,8 +74,12 @@ test("keeps real workspaces free of demo state and persists production flows", a
   assert.match(orchestrator, /MAX_EXTRACTED_ITEMS = 20/);
   assert.match(orchestrator, /required: \["items"\]/);
   assert.match(orchestrator, /sourceExcerpt/);
+  assert.match(orchestrator, /captureIntent === "note"/);
+  assert.match(orchestrator, /Notes are reference knowledge/);
   assert.match(app, /onReview: \(drafts: LifeItem\[\]/);
-  assert.match(app, /Save \{items\.length === 1/);
+  assert.match(app, /Save as note/);
+  assert.match(app, /function NotesView/);
+  assert.match(client, /content: item\.content/);
 });
 
 test("exports a designed PDF instead of raw JSON", async () => {
@@ -94,7 +98,7 @@ test("exports a designed PDF instead of raw JSON", async () => {
 });
 
 test("conservatively separates compound fallback captures", async () => {
-  const { makeDrafts } = await import(new URL("../lib/lifeinbox.ts", import.meta.url));
+  const { makeDrafts, makeNoteDraft } = await import(new URL("../lib/lifeinbox.ts", import.meta.url));
   const drafts = makeDrafts("Renew insurance, call Dr Mehta tomorrow, and pay Aanya ₹1,240", "text");
   assert.equal(drafts.length, 3);
   assert.deepEqual(drafts.map((item) => item.title), ["Renew insurance", "call Dr Mehta tomorrow", "pay Aanya ₹1,240"]);
@@ -103,6 +107,12 @@ test("conservatively separates compound fallback captures", async () => {
 
   const receipt = makeDrafts("Save this receipt for the project", "text")[0];
   assert.equal(receipt.amount, undefined);
+
+  const note = makeNoteDraft("Venue access\nUse the east entrance after 6 PM.", "text");
+  assert.equal(note.type, "note");
+  assert.equal(note.content, "Venue access\nUse the east entrance after 6 PM.");
+  assert.equal(note.status, "inbox");
+  assert.deepEqual(note.missingFields, []);
 });
 
 test("generates a real multi-page PDF document", async () => {
@@ -128,7 +138,7 @@ test("ships a complete installable PWA", async () => {
   assert.equal(parsed.display, "standalone");
   assert.ok(parsed.icons.some((icon) => icon.sizes === "192x192"));
   assert.ok(parsed.icons.some((icon) => icon.sizes === "512x512" && icon.purpose === "maskable"));
-  assert.match(serviceWorker, /lifeinbox-shell-v6/);
+  assert.match(serviceWorker, /lifeinbox-shell-v7/);
   assert.match(serviceWorker, /request\.mode === "navigate"/);
   assert.match(layout, /manifest\.webmanifest/);
   assert.match(client, /beforeinstallprompt/);

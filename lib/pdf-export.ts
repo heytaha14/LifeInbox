@@ -372,7 +372,8 @@ class ContentLayout {
     const contentWidth = this.width - PAGE.margin * 2;
     const innerWidth = contentWidth - 12;
     const titleLines = clipLines(splitLines(this.doc, item.title || "Untitled capture", innerWidth - 30), 4);
-    const summaryLines = splitLines(this.doc, item.summary || "No summary was saved for this item.", innerWidth);
+    const printableBody = item.type === "note" ? item.content || item.summary : item.summary;
+    const summaryLines = splitLines(this.doc, printableBody || "No summary was saved for this item.", innerWidth);
     const metadata = [
       statusLabel(item.status),
       `${item.priority[0].toUpperCase()}${item.priority.slice(1)} priority`,

@@ -20,9 +20,9 @@ Life admin rarely arrives as one tidy task. It arrives as a screenshot of a flig
 
 ### What it does
 
-LifeInbox turns text, images, PDFs, receipts, and recorded voice into editable tasks, events, expenses, and notes. One messy capture can become as many as 20 small, independent items. GPT-5.6 Terra with high reasoning identifies dates, times, priority, people, amounts, locations, missing information, confidence, a supporting source excerpt, and a suggested Life Thread for each item.
+LifeInbox turns text, images, PDFs, receipts, and recorded voice into editable tasks, events, expenses, and notes. Users can ask it to organize one messy capture into as many as 20 small, independent items or explicitly preserve the information as one permanent note. GPT-5.6 Terra with high reasoning identifies dates, times, priority, people, amounts, locations, missing information, confidence, a supporting source excerpt, and a suggested Life Thread for each item.
 
-The user reviews the entire batch, edits or removes individual items, and approves only what is correct. Approved items power a focused Today briefing, searchable active and completed inbox views, connected Life Threads, and Ask LifeInbox answers with clickable citations back to exact saved items.
+The user reviews the result, edits or removes individual items, and approves only what is correct. Approved actions power a focused Today briefing and active/completed Inbox; permanent notes live in a searchable Notes library and remain available to Ask LifeInbox as reference knowledge without becoming fake outstanding work.
 
 The product includes a clean iOS-inspired white, graphite, and lime interface; a responsive phone, tablet, and desktop workspace; an installable PWA; per-user Appwrite permissions; retention and deletion controls; and a designed multi-page PDF report with cover, metrics, grouped items, and page numbers.
 
@@ -44,6 +44,7 @@ We also hardened the Responses API boundary for cases where a model refuses, ret
 
 - A complete working product, not a single-prompt AI demo
 - One capture decomposed into up to 20 source-grounded atomic items
+- Explicit permanent Notes mode with faithful full content, dedicated search, and user-controlled deletion
 - Strict Structured Outputs plus evidence, date/time, and duplicate validation
 - Editable batch review with confidence and missing-information cues
 - Grounded Ask answers with clickable item-level citations
@@ -108,7 +109,7 @@ Ask `What should I do first?`, then click a citation chip.
 
 ### 1:58–2:20 — designed PDF and PWA
 
-> This is also a practical personal workspace. Instead of a raw JSON dump, LifeInbox exports a designed PDF with a cover, summary metrics, grouped items, statuses, confidence, and page numbers. It is installable as a PWA and adapts its navigation and capture flow for phone, tablet, and desktop.
+> This is also a practical personal workspace. Not everything is a task, so users can choose Save as note and keep complete reference information until they delete it. Instead of a raw JSON dump, LifeInbox exports a designed PDF with a cover, summary metrics, grouped items, notes, statuses, confidence, and page numbers. It is installable as a PWA and adapts its navigation and capture flow for phone, tablet, and desktop.
 
 Generate and briefly show the PDF, then show one mobile responsive view or the installed-app prompt.
 

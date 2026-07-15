@@ -2,7 +2,7 @@
   "id": "/",
   "name": "LifeInbox - Drop it in. Know what matters next.",
   "short_name": "LifeInbox",
-  "description": "Drop text, images, PDFs, and voice notes into one private AI inbox that separates and organizes every next step.",
+  "description": "Drop text, images, PDFs, and voice into one private AI workspace that organizes next steps or saves permanent notes.",
   "start_url": "/?source=pwa",
   "scope": "/",
   "display": "standalone",

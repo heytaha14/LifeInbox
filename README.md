@@ -1,6 +1,6 @@
 # LifeInbox
 
-> Turn screenshots, receipts, PDFs, voice notes, and messy thoughts into clear next steps.
+> Turn screenshots, receipts, PDFs, voice notes, and messy thoughts into clear next steps or permanent notes.
 
 [![OpenAI Build Week](https://img.shields.io/badge/OpenAI-Build%20Week-111827)](https://openai.devpost.com/)
 [![GPT-5.6 Terra](https://img.shields.io/badge/OpenAI-GPT--5.6%20Terra-78e957)](https://developers.openai.com/api/docs/models/gpt-5.6-terra)
@@ -10,7 +10,7 @@
 **Live project:** [lifeinbox-calm.explorertaha.chatgpt.site](https://lifeinbox-calm.explorertaha.chatgpt.site/)
 **OpenAI Build Week track:** Apps for Your Life
 
-LifeInbox is a private, mobile-first life-admin assistant with a clean iOS-inspired workspace. Users drop in whatever is occupying their head, let GPT-5.6 split it into small source-grounded items, review the batch, and work from a focused Today view, searchable inbox, connected Life Threads, and an Ask experience grounded only in their own saved items.
+LifeInbox is a private, mobile-first life-admin assistant with a clean iOS-inspired workspace. Users can ask GPT-5.6 to split a messy capture into source-grounded actions or preserve it as one permanent note, review the result, and work from Today, Inbox, Notes, connected Life Threads, and an Ask experience grounded only in their own saved items.
 
 ## Why this exists
 
@@ -33,8 +33,9 @@ The fastest path requires no credentials and no local setup:
 6. Approve the batch, refresh the page, and confirm that all three items persist.
 7. Complete one item, choose the **Completed** inbox filter, and confirm that it remains easy to find or restore.
 8. Open **Ask LifeInbox**, ask `What should I do first?`, then click its citation to open the exact supporting item.
-9. Open **Settings → Privacy**, export the designed PDF report, and inspect its cover, summary metrics, grouped items, and page numbers.
-10. Delete the temporary workspace from **Settings → Privacy**.
+9. Open **New capture**, select **Save as note**, save a useful reference, and confirm it appears in **Notes** after refresh.
+10. Open **Settings → Privacy**, export the designed PDF report, and inspect its cover, summary metrics, grouped items, notes, and page numbers.
+11. Delete the temporary workspace from **Settings → Privacy**.
 
 Demo mode is intentionally isolated from authenticated accounts. New real accounts always start with an empty workspace.
 
@@ -44,10 +45,11 @@ Demo mode is intentionally isolated from authenticated accounts. New real accoun
 - Real empty workspaces with demo data isolated to explicit demo mode
 - Text, image, PDF, and browser-recorded voice capture
 - GPT-5.6 Terra Structured Outputs that split one capture into as many as 20 atomic items
+- Explicit **Save as note** capture mode with a permanent, searchable Notes library and full note bodies
 - Source-evidence, date/time, enum, and duplicate-intent validation with safe refusal/incomplete-output handling
 - Batch review with per-item tabs, confidence, missing-information guidance, editing, removal, and approve-all
 - Permissioned Appwrite rows and files owned by the signed-in user
-- Today briefing generated from current high-priority and dated items
+- Today briefing generated from current high-priority and dated actions; reference notes do not become fake work
 - Searchable, filterable inbox with active and completed views plus complete, restore, snooze, detail, and delete actions
 - Life Thread creation, AI suggestions, persistent linking, and non-destructive deletion
 - Ask LifeInbox answers grounded in user data with clickable item citations
