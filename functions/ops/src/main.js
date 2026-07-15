@@ -8,11 +8,12 @@ const ACTIONS = process.env.APPWRITE_ACTIONS_COLLECTION_ID || "actions";
 const THREADS = process.env.APPWRITE_THREADS_COLLECTION_ID || "threads";
 const BRIEFINGS = process.env.APPWRITE_BRIEFINGS_COLLECTION_ID || "briefings";
 
-function services() {
+function services(req) {
+  const dynamicKey = req.headers["x-appwrite-key"] || req.headers["X-Appwrite-Key"];
   const client = new Client()
     .setEndpoint(process.env.APPWRITE_FUNCTION_API_ENDPOINT || process.env.APPWRITE_ENDPOINT || "https://cloud.appwrite.io/v1")
     .setProject(process.env.APPWRITE_FUNCTION_PROJECT_ID || process.env.APPWRITE_PROJECT_ID)
-    .setKey(process.env.APPWRITE_API_KEY);
+    .setKey(dynamicKey);
   return { databases: new Databases(client), storage: new Storage(client), users: new Users(client) };
 }
 
@@ -80,7 +81,7 @@ async function deleteAccount(databases, storage, users, userId) {
 }
 
 async function handler({ req, res, log, error }) {
-  if (!process.env.APPWRITE_API_KEY) return res.json({ error: "function_not_configured" }, 503);
+  if (!req.headers["x-appwrite-key"]) return res.json({ error: "function_not_configured" }, 503);
   const request = body(req);
   const route = String(request.route || req.path || "cleanup").replace(/^\//, "");
   const userId = req.headers["x-appwrite-user-id"] || req.headers["X-Appwrite-User-Id"];
@@ -89,7 +90,7 @@ async function handler({ req, res, log, error }) {
   const userOwnedRoute = route === "delete-account" && Boolean(userId);
   if (!scheduled && !userOwnedRoute && (!process.env.OPS_SECRET || suppliedSecret !== process.env.OPS_SECRET)) return res.json({ error: "forbidden" }, 403);
   try {
-    const { databases, storage, users } = services();
+    const { databases, storage, users } = services(req);
     if (route === "delete-account") return res.json(await deleteAccount(databases, storage, users, userId));
     if (route === "cleanup") return res.json(await cleanup(databases, storage, log));
     if (route === "usage") return res.json(await usageSummary(databases));

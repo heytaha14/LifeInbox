@@ -1,6 +1,6 @@
 {
   "projectId": "",
-  "projectName": "LifeInbox",
+  "endpoint": "https://cloud.appwrite.io/v1",
   "functions": [
     {
       "$id": "ai-orchestrator",
@@ -14,7 +14,8 @@
       "logging": true,
       "entrypoint": "src/main.js",
       "commands": "npm install",
-      "path": "functions/ai-orchestrator"
+      "path": "functions/ai-orchestrator",
+      "scopes": ["databases.read", "collections.read", "documents.read", "documents.write", "files.read"]
     },
     {
       "$id": "ops",
@@ -28,7 +29,8 @@
       "logging": true,
       "entrypoint": "src/main.js",
       "commands": "npm install",
-      "path": "functions/ops"
+      "path": "functions/ops",
+      "scopes": ["databases.read", "collections.read", "documents.read", "documents.write", "files.read", "files.write", "users.write"]
     }
   ]
 }

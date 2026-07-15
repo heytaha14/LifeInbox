@@ -44,5 +44,25 @@ test("keeps Appwrite and secrets behind explicit boundaries", async () => {
   assert.match(layout, /\/og-bright\.png/);
   await assert.rejects(access(new URL("../app/_sites-preview", import.meta.url)));
   await access(new URL("../public/og-bright.png", import.meta.url));
-  await access(new URL("appwrite.json", root));
+  await access(new URL("appwrite.config.json", root));
+});
+
+test("ships a complete installable PWA", async () => {
+  const [manifest, serviceWorker, layout, client] = await Promise.all([
+    readFile(new URL("../public/manifest.webmanifest", import.meta.url), "utf8"),
+    readFile(new URL("../public/sw.js", import.meta.url), "utf8"),
+    readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/pwa-client.tsx", import.meta.url), "utf8"),
+  ]);
+  const parsed = JSON.parse(manifest);
+  assert.equal(parsed.display, "standalone");
+  assert.ok(parsed.icons.some((icon) => icon.sizes === "192x192"));
+  assert.ok(parsed.icons.some((icon) => icon.sizes === "512x512" && icon.purpose === "maskable"));
+  assert.match(serviceWorker, /lifeinbox-shell-v3/);
+  assert.match(serviceWorker, /request\.mode === "navigate"/);
+  assert.match(layout, /manifest\.webmanifest/);
+  assert.match(client, /beforeinstallprompt/);
+  await access(new URL("../public/icons/icon-192.png", import.meta.url));
+  await access(new URL("../public/icons/icon-512.png", import.meta.url));
+  await access(new URL("../public/icons/apple-touch-icon.png", import.meta.url));
 });

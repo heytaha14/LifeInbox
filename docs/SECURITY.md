@@ -10,7 +10,8 @@
 
 ## Secret handling
 
-- `APPWRITE_API_KEY`, `OPENAI_API_KEY`, and `OPS_SECRET` are server-only.
+- `APPWRITE_API_KEY` is a local bootstrap secret only; `OPENAI_API_KEY` and `OPS_SECRET` are Appwrite Function secrets.
+- Appwrite Functions authenticate to Appwrite with scoped per-execution dynamic keys rather than a deployed static API key.
 - No secret has a `NEXT_PUBLIC_` prefix.
 - Function logs contain route names and a short user-ID prefix only; they must never log capture text or files.
 

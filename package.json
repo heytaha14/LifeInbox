@@ -12,7 +12,8 @@
     "test": "npm run build && node --test tests/rendered-html.test.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate",
-    "appwrite:setup": "node scripts/setup-appwrite.mjs"
+    "appwrite:setup": "node scripts/setup-appwrite.mjs",
+    "appwrite:deploy": "appwrite push functions --all"
   },
   "dependencies": {
     "appwrite": "^21.5.0",

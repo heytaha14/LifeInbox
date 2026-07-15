@@ -36,11 +36,12 @@ function json(res, body, status = 200) { return res.json(body, status); }
 function today() { return new Date().toISOString().slice(0, 10); }
 function hash(value) { return crypto.createHash("sha256").update(value).digest("hex"); }
 
-function services() {
+function services(req) {
+  const dynamicKey = req.headers["x-appwrite-key"] || req.headers["X-Appwrite-Key"];
   const client = new Client()
     .setEndpoint(process.env.APPWRITE_FUNCTION_API_ENDPOINT || process.env.APPWRITE_ENDPOINT || "https://cloud.appwrite.io/v1")
     .setProject(process.env.APPWRITE_FUNCTION_PROJECT_ID || process.env.APPWRITE_PROJECT_ID)
-    .setKey(process.env.APPWRITE_API_KEY);
+    .setKey(dynamicKey);
   return { databases: new Databases(client), storage: new Storage(client), openai: new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) };
 }
 
@@ -196,11 +197,11 @@ async function regroup({ openai, databases, userId }) {
 async function handler({ req, res, log, error }) {
   const userId = req.headers["x-appwrite-user-id"] || req.headers["X-Appwrite-User-Id"];
   if (!userId) return json(res, { error: "authentication_required" }, 401);
-  if (!process.env.APPWRITE_API_KEY || !process.env.OPENAI_API_KEY) return json(res, { error: "function_not_configured" }, 503);
+  if (!req.headers["x-appwrite-key"] || !process.env.OPENAI_API_KEY) return json(res, { error: "function_not_configured" }, 503);
   try {
     const body = parseBody(req);
     const route = String(body.route || req.path || "").replace(/^\//, "");
-    const { databases, storage, openai } = services();
+    const { databases, storage, openai } = services(req);
     const context = { databases, storage, openai, userId, body };
     const result = route === "extract" ? await extract(context)
       : route === "ask" ? await ask(context)

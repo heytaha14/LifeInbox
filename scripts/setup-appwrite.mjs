@@ -1,10 +1,13 @@
 import { Client, Compression, Databases, IndexType, Permission, Role, Storage } from "node-appwrite";
+import { loadEnvFile } from "node:process";
+
+try { loadEnvFile(".env.local"); } catch (error) { if (error?.code !== "ENOENT") throw error; }
 
 const required = ["NEXT_PUBLIC_APPWRITE_ENDPOINT", "NEXT_PUBLIC_APPWRITE_PROJECT_ID", "APPWRITE_API_KEY"];
 const missing = required.filter((key) => !process.env[key]);
 if (missing.length) {
   console.error(`Missing environment variables: ${missing.join(", ")}`);
-  console.error("Copy .env.example to .env.local, set the values, then load them into your shell before running this command.");
+  console.error("Copy .env.example to .env.local and set the values before running this command.");
   process.exit(1);
 }
 
@@ -165,4 +168,4 @@ await createOrKeep("storage bucket", () => storage.createBucket({
 }));
 
 console.log("LifeInbox Appwrite resources are ready.");
-console.log("Next: add a Web platform for localhost and your production domain, then deploy the two functions in appwrite.json.");
+console.log("Next: add a Web platform for localhost and your production domain, then deploy the two functions in appwrite.config.json.");

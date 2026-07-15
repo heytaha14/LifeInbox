@@ -1,6 +1,7 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
 import { Geist, Geist_Mono } from "next/font/google";
+import { PwaClient } from "./pwa-client";
 import "./globals.css";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
@@ -16,6 +17,13 @@ export async function generateMetadata(): Promise<Metadata> {
     metadataBase: new URL(base),
     title: { default: "LifeInbox - Turn life admin into a clear next step", template: "%s | LifeInbox" },
     description: "Capture anything. LifeInbox turns it into organized actions, calm daily briefings, and searchable life threads.",
+    applicationName: "LifeInbox",
+    manifest: "/manifest.webmanifest",
+    appleWebApp: { capable: true, statusBarStyle: "default", title: "LifeInbox" },
+    icons: {
+      icon: [{ url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }, { url: "/icons/icon-512.png", sizes: "512x512", type: "image/png" }],
+      apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+    },
     openGraph: {
       title: "LifeInbox - Your life, finally out of your head",
       description: "One calm inbox for plans, paperwork, reminders, receipts, and everything in between.",
@@ -26,10 +34,21 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
+  viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#fffaf0" },
+    { media: "(prefers-color-scheme: dark)", color: "#20223f" },
+  ],
+};
+
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
-      <body className={`${geistSans.variable} ${geistMono.variable}`}>{children}</body>
+      <body className={`${geistSans.variable} ${geistMono.variable}`}>{children}<PwaClient /></body>
     </html>
   );
 }

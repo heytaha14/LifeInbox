@@ -16,6 +16,8 @@ The app is designed around Appwrite Free constraints: one database, one bucket, 
 - Life Threads overview and thread detail drawer
 - Ask LifeInbox with grounded item citations
 - Profile, quota, capture preferences, retention, export, and account controls
+- Installable PWA with custom icons, standalone mode, offline shell caching, install guidance, and safe-area support
+- Dedicated phone bottom navigation, compact tablet rail, touch-sized controls, and mobile full-screen capture/review flows
 - Appwrite setup script for one database, five collections, one bucket, indexes, and user permissions
 - `ai-orchestrator` function for extraction, Ask, cached briefing, grouping, quotas, and token usage
 - `ops` function for retention cleanup, daily usage aggregation, billing seams, and health checks
@@ -29,15 +31,9 @@ npm run dev
 
 Open `http://localhost:3000`. Choose **Explore the demo** to exercise every user-facing flow without credentials.
 
-## Connect Appwrite
+## Connect Appwrite and OpenAI
 
-1. Create an Appwrite project and add a Web platform for `localhost` plus your production domain.
-2. Copy `.env.example` to `.env.local`.
-3. Add the public endpoint/project values to `.env.local`.
-4. Create a server API key with database, collection/attribute/index, bucket, and function management scopes. Keep it server-only as `APPWRITE_API_KEY`; never use a `NEXT_PUBLIC_` prefix.
-5. Load `.env.local` into your shell, then run `npm run appwrite:setup` once.
-6. Put the Appwrite project ID into `appwrite.json` and deploy both functions with the Appwrite CLI.
-7. Add the function-only variables shown in `.env.example` to both functions as appropriate. `OPENAI_API_KEY` belongs only on `ai-orchestrator`.
+Follow the complete [production setup guide](docs/SETUP.md). The short version is: create the Appwrite project and Web platforms, fill `.env.local`, run `npm run appwrite:setup`, put the project ID in `appwrite.config.json`, deploy the functions, and add `OPENAI_API_KEY` only to the AI function.
 
 The website never needs or reads the Appwrite API key. Browser requests use the logged-in Appwrite session and document/file permissions.
 
@@ -58,8 +54,9 @@ The website never needs or reads the Appwrite API key. Browser requests use the 
 ## Important environment rules
 
 - Public: only `NEXT_PUBLIC_APPWRITE_*` identifiers and endpoint.
-- Secret: `APPWRITE_API_KEY`, `OPENAI_API_KEY`, and `OPS_SECRET`.
+- Secret: local bootstrap `APPWRITE_API_KEY`, function-only `OPENAI_API_KEY`, and `OPS_SECRET`.
 - The OpenAI key must exist only in Appwrite Function variables.
+- Appwrite Functions use scoped dynamic execution keys; the bootstrap API key is never deployed with them.
 - Use separate Appwrite projects for preview and production when integration tests can mutate data.
 
 ## Quality commands

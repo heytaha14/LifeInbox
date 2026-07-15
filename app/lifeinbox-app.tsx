@@ -202,6 +202,11 @@ function Sidebar({ view, setView, user, demo, onCapture, onLogout }: { view: Vie
         <div className="user-menu"><span>{user.name.charAt(0).toUpperCase()}</span><div><b>{user.name}</b><small>{demo ? "Free demo" : user.email}</small></div><button onClick={onLogout} aria-label="Log out"><LogOut size={16} /></button></div>
       </div>
     </aside>
+    <nav className="mobile-tabbar" aria-label="Mobile app navigation">
+      {links.slice(0, 2).map((link) => <button key={link.id} className={view === link.id ? "active" : ""} aria-current={view === link.id ? "page" : undefined} onClick={() => choose(link.id)}><link.icon size={20} /><span>{link.label}</span></button>)}
+      <button className="mobile-capture" onClick={onCapture} aria-label="New capture"><Plus size={25} /><span>Capture</span></button>
+      {links.slice(2).map((link) => <button key={link.id} className={view === link.id ? "active" : ""} aria-current={view === link.id ? "page" : undefined} onClick={() => choose(link.id)}><link.icon size={20} /><span>{link.id === "threads" ? "Threads" : "Ask"}</span></button>)}
+    </nav>
   </>;
 }
 
