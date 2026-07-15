@@ -52,6 +52,23 @@ test("keeps Appwrite and secrets behind explicit boundaries", async () => {
   await access(new URL("appwrite.config.json", root));
 });
 
+test("keeps real workspaces free of demo state and persists production flows", async () => {
+  const [app, client, orchestrator] = await Promise.all([
+    readFile(new URL("../app/lifeinbox-app.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../lib/appwrite.ts", import.meta.url), "utf8"),
+    readFile(new URL("../functions/ai-orchestrator/src/main.js", import.meta.url), "utf8"),
+  ]);
+  assert.match(app, /useState<LifeItem\[]>\(\[\]\)/);
+  assert.match(app, /setItems\(seedItems\); setCustomThreads\(seedThreads\)/);
+  assert.doesNotMatch(app, /items\.length \+ 13/);
+  assert.match(app, /deleteLifeThread/);
+  assert.match(app, /status: "completed"/);
+  assert.match(client, /LifeItemUpdate/);
+  assert.match(client, /responseStatusCode >= 400/);
+  assert.match(orchestrator, /gpt-5\.6-luna/);
+  assert.match(orchestrator, /parseModelJson/);
+});
+
 test("ships a complete installable PWA", async () => {
   const [manifest, serviceWorker, layout, client] = await Promise.all([
     readFile(new URL("../public/manifest.webmanifest", import.meta.url), "utf8"),

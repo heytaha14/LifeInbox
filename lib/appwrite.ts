@@ -68,16 +68,37 @@ export async function uploadCaptureFile(file: File, userId: string) {
 }
 
 export async function saveLifeItem(item: LifeItem, userId: string) {
+  const data = {
+    userId,
+    type: item.type,
+    title: item.title,
+    summary: item.summary,
+    dueLabel: item.dueLabel,
+    dueDate: item.dueDate,
+    time: item.time,
+    amount: item.amount,
+    location: item.location,
+    people: item.people ?? [],
+    priority: item.priority,
+    confidence: item.confidence,
+    threadId: item.threadId,
+    threadName: item.threadName,
+    status: item.status,
+    source: item.source,
+    createdAt: item.createdAt,
+  };
   return databases.createDocument({
     databaseId: appwriteConfig.databaseId,
     collectionId: appwriteConfig.actionsCollectionId,
     documentId: item.id,
-    data: { ...item, people: item.people ?? [], userId },
+    data,
     permissions: [Permission.read(Role.user(userId)), Permission.update(Role.user(userId)), Permission.delete(Role.user(userId))],
   });
 }
 
-export async function updateLifeItem(itemId: string, data: Partial<LifeItem>) {
+type LifeItemUpdate = Partial<Omit<LifeItem, "threadId" | "threadName">> & { threadId?: string | null; threadName?: string | null };
+
+export async function updateLifeItem(itemId: string, data: LifeItemUpdate) {
   return databases.updateDocument({
     databaseId: appwriteConfig.databaseId,
     collectionId: appwriteConfig.actionsCollectionId,
@@ -113,6 +134,15 @@ export async function saveCaptureRecord(data: { source: LifeItem["source"]; rawT
   });
 }
 
+export async function updateCaptureRecord(captureId: string, data: { status?: string; needsReview?: boolean; confidence?: number; mode?: string }) {
+  return databases.updateDocument({
+    databaseId: appwriteConfig.databaseId,
+    collectionId: appwriteConfig.capturesCollectionId,
+    documentId: captureId,
+    data,
+  });
+}
+
 export async function saveLifeThread(thread: LifeThread, userId: string) {
   return databases.createDocument({
     databaseId: appwriteConfig.databaseId,
@@ -120,6 +150,23 @@ export async function saveLifeThread(thread: LifeThread, userId: string) {
     documentId: thread.id,
     data: { userId, name: thread.name, summary: thread.eyebrow, nextStep: thread.nextStep, dateRange: thread.dateRange, color: thread.color, itemIds: thread.itemIds, updatedAt: new Date().toISOString() },
     permissions: [Permission.read(Role.user(userId)), Permission.update(Role.user(userId)), Permission.delete(Role.user(userId))],
+  });
+}
+
+export async function updateLifeThread(thread: LifeThread) {
+  return databases.updateDocument({
+    databaseId: appwriteConfig.databaseId,
+    collectionId: appwriteConfig.threadsCollectionId,
+    documentId: thread.id,
+    data: { name: thread.name, summary: thread.eyebrow, nextStep: thread.nextStep, dateRange: thread.dateRange, color: thread.color, itemIds: thread.itemIds, updatedAt: new Date().toISOString() },
+  });
+}
+
+export async function deleteLifeThread(threadId: string) {
+  return databases.deleteDocument({
+    databaseId: appwriteConfig.databaseId,
+    collectionId: appwriteConfig.threadsCollectionId,
+    documentId: threadId,
   });
 }
 
@@ -158,7 +205,7 @@ export async function listLifeThreads(userId: string): Promise<LifeThread[]> {
 }
 
 export async function askOrExtract(route: "extract" | "ask" | "today-brief" | "regroup-thread", payload: Record<string, unknown>) {
-  if (!appwriteConfig.aiFunctionId) return null;
+  if (!appwriteConfig.aiFunctionId) throw new Error("AI function is not configured.");
   const execution = await appwriteFunctions.createExecution({
     functionId: appwriteConfig.aiFunctionId,
     body: JSON.stringify({ route, ...payload }),
@@ -167,8 +214,15 @@ export async function askOrExtract(route: "extract" | "ask" | "today-brief" | "r
     method: "POST",
     headers: { "content-type": "application/json" },
   });
-  if (!execution.responseBody) return null;
-  return JSON.parse(execution.responseBody) as Record<string, unknown>;
+  let response: Record<string, unknown> = {};
+  if (execution.responseBody) {
+    try { response = JSON.parse(execution.responseBody) as Record<string, unknown>; }
+    catch { throw new Error("LifeInbox AI returned an unreadable response."); }
+  }
+  if (execution.status === "failed" || execution.responseStatusCode >= 400) {
+    throw new Error(String(response.message || response.error || "LifeInbox AI could not complete this request."));
+  }
+  return response;
 }
 
 export async function runOps(route: "delete-account" | "export", payload: Record<string, unknown> = {}) {

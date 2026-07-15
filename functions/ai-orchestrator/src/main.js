@@ -8,7 +8,7 @@ const ACTIONS = process.env.APPWRITE_ACTIONS_COLLECTION_ID || "actions";
 const BRIEFINGS = process.env.APPWRITE_BRIEFINGS_COLLECTION_ID || "briefings";
 const USAGE = process.env.APPWRITE_USAGE_COLLECTION_ID || "usage";
 const BUCKET = process.env.APPWRITE_BUCKET_ID || "inbox-files";
-const MODEL = process.env.OPENAI_MODEL || "gpt-5-nano";
+const MODEL = process.env.OPENAI_MODEL || "gpt-5.6-luna";
 const DAILY_LIMIT = Number(process.env.FREE_DAILY_CAPTURE_LIMIT || 50);
 
 const extractionSchema = {
@@ -72,9 +72,38 @@ async function addUsage(databases, userId, usage, extra = {}) {
 }
 
 function parseBody(req) {
-  if (!req.bodyRaw) return {};
-  try { return typeof req.bodyRaw === "string" ? JSON.parse(req.bodyRaw) : req.bodyRaw; }
+  if (req.bodyJson && typeof req.bodyJson === "object") return req.bodyJson;
+  const raw = req.bodyText ?? req.bodyRaw;
+  if (!raw) return {};
+  try { return typeof raw === "string" ? JSON.parse(raw) : raw; }
   catch { throw new Error("Request body must be valid JSON"); }
+}
+
+function parseModelJson(response, label) {
+  const output = String(response?.output_text || "").trim();
+  if (!output) {
+    const reason = response?.incomplete_details?.reason || response?.status || "empty output";
+    throw new Error(`${label} returned no usable output (${reason})`);
+  }
+  const normalized = output.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
+  try { return JSON.parse(normalized); }
+  catch { throw new Error(`${label} returned invalid structured output`); }
+}
+
+async function extractStructured(openai, input) {
+  let lastError;
+  for (const maxOutputTokens of [1800, 3200]) {
+    const response = await openai.responses.create({
+      model: MODEL,
+      input,
+      reasoning: { effort: "none" },
+      text: { format: { type: "json_schema", name: "lifeinbox_item", strict: true, schema: extractionSchema } },
+      max_output_tokens: maxOutputTokens,
+    });
+    try { return { response, extracted: parseModelJson(response, "Capture extraction") }; }
+    catch (error) { lastError = error; }
+  }
+  throw lastError || new Error("Capture extraction failed");
 }
 
 async function normalizeCapture({ openai, storage, body }) {
@@ -112,27 +141,30 @@ async function extract({ openai, databases, storage, userId, body }) {
   const normalized = await normalizeCapture({ openai, storage, body });
   if (!normalized.text && !normalized.content.length) return { status: 400, body: { error: "input_required" } };
   let response;
+  let extracted;
   try {
-    response = await openai.responses.create({
-      model: MODEL,
-      input: [
-        { role: "system", content: "You extract bright, useful life-admin actions. Never invent dates, amounts, people, or locations. Prefer one clear item. If information is ambiguous, lower confidence and list the missing field. A confidence below 80 always requires review." },
-        { role: "user", content: [{ type: "input_text", text: `Source type: ${body.source || "text"}. Processing mode: ${normalized.mode}.` }, ...normalized.content] },
-      ],
-      text: { format: { type: "json_schema", name: "lifeinbox_item", strict: true, schema: extractionSchema } },
-      max_output_tokens: 900,
-    });
+    const result = await extractStructured(openai, [
+      { role: "system", content: `You extract one useful life-admin item. Today is ${today()}. Never invent dates, amounts, people, or locations. Resolve relative dates only when the capture supports it. Use a concise action title. If information is ambiguous, lower confidence and list the missing field. A confidence below 80 always requires review.` },
+      { role: "user", content: [{ type: "input_text", text: `Source type: ${body.source || "text"}. Processing mode: ${normalized.mode}.` }, ...normalized.content] },
+    ]);
+    response = result.response;
+    extracted = result.extracted;
   } finally {
     if (normalized.openaiFileId) await openai.files.delete(normalized.openaiFileId).catch(() => {});
   }
-  const extracted = JSON.parse(response.output_text);
+  const { threadHint, missingFields } = extracted;
+  const supported = {
+    type: extracted.type, title: extracted.title, summary: extracted.summary, dueDate: extracted.dueDate,
+    time: extracted.time, amount: extracted.amount, location: extracted.location, people: extracted.people,
+    priority: extracted.priority, confidence: extracted.confidence,
+  };
   const item = {
-    ...extracted,
-    id: ID.unique(), status: "inbox", source: body.source || "text", threadName: extracted.threadHint,
+    ...supported,
+    id: ID.unique(), status: "inbox", source: body.source || "text", threadName: threadHint || undefined,
     dueLabel: extracted.dueDate || "No date", createdAt: new Date().toISOString(),
   };
   await addUsage(databases, userId, response.usage, { captures: 1, ocrRuns: normalized.ocrRuns || 0, sttRuns: normalized.sttRuns || 0 });
-  return { status: 200, body: { item, needsReview: extracted.confidence < 80 || extracted.missingFields.length > 0, model: MODEL, mode: normalized.mode } };
+  return { status: 200, body: { item, needsReview: extracted.confidence < 80 || missingFields.length > 0, model: MODEL, mode: normalized.mode } };
 }
 
 async function relevantActions(databases, userId, queries = []) {
@@ -151,17 +183,21 @@ async function ask({ openai, databases, userId, body }) {
   try { items = words.length ? await relevantActions(databases, userId, [Query.search("title", words.slice(0, 4).join(" "))]) : []; }
   catch { items = []; }
   if (!items.length) items = await relevantActions(databases, userId);
+  if (!items.length) return { status: 200, body: { answer: "Your LifeInbox is empty right now. Capture your first task, note, event, or expense and I can help you reason across it.", citations: [] } };
   const response = await openai.responses.create({
     model: MODEL,
     input: [
       { role: "system", content: "Answer only from the supplied LifeInbox items. Be concise, practical, and transparent about uncertainty. Cite supporting item IDs in square brackets. Never claim an action was completed." },
       { role: "user", content: `Question: ${question}\n\nItems:\n${JSON.stringify(items).slice(0, 18000)}` },
     ],
-    max_output_tokens: 600,
+    reasoning: { effort: "none" },
+    max_output_tokens: 1200,
   });
   await addUsage(databases, userId, response.usage);
-  const citations = [...response.output_text.matchAll(/\[([A-Za-z0-9._-]+)\]/g)].map((match) => match[1]).filter((id) => items.some((item) => item.id === id));
-  return { status: 200, body: { answer: response.output_text, citations: [...new Set(citations)] } };
+  const answer = String(response.output_text || "").trim();
+  if (!answer) throw new Error("Ask LifeInbox returned no usable answer");
+  const citations = [...answer.matchAll(/\[([A-Za-z0-9._-]+)\]/g)].map((match) => match[1]).filter((id) => items.some((item) => item.id === id));
+  return { status: 200, body: { answer, citations: [...new Set(citations)] } };
 }
 
 async function briefing({ openai, databases, userId }) {
@@ -173,12 +209,16 @@ async function briefing({ openai, databases, userId }) {
     return { status: 200, body: { briefing: cached.documents[0].content, itemIds: cached.documents[0].itemIds, cached: true } };
   }
   const focused = items.filter((item) => item.priority === "high" || item.dueDate).slice(0, 12);
+  if (!focused.length) return { status: 200, body: { briefing: "Your day is clear. Capture anything you want LifeInbox to remember, organize, or turn into a next step.", itemIds: [], cached: false } };
   const response = await openai.responses.create({
     model: MODEL,
     input: `Create a warm, direct daily briefing in 70 words or fewer. Mention at most three things and lead with the clearest next step. Use only these items: ${JSON.stringify(focused)}`,
-    max_output_tokens: 220,
+    reasoning: { effort: "none" },
+    max_output_tokens: 700,
   });
-  const data = { userId, date: today(), content: response.output_text, itemIds: focused.map((item) => item.id), versionHash, createdAt: new Date().toISOString() };
+  const content = String(response.output_text || "").trim();
+  if (!content) throw new Error("Daily briefing returned no usable output");
+  const data = { userId, date: today(), content, itemIds: focused.map((item) => item.id), versionHash, createdAt: new Date().toISOString() };
   if (cached.documents[0]) await databases.updateDocument({ databaseId: DB, collectionId: BRIEFINGS, documentId: cached.documents[0].$id, data });
   else await databases.createDocument({ databaseId: DB, collectionId: BRIEFINGS, documentId: ID.unique(), data, permissions: [Permission.read(Role.user(userId))] });
   await addUsage(databases, userId, response.usage);
@@ -189,9 +229,9 @@ async function regroup({ openai, databases, userId }) {
   const items = await relevantActions(databases, userId);
   const deterministic = items.filter((item) => item.threadName).reduce((groups, item) => ({ ...groups, [item.threadName]: [...(groups[item.threadName] || []), item.id] }), {});
   if (Object.keys(deterministic).length || items.length < 2) return { status: 200, body: { groups: deterministic, source: "deterministic" } };
-  const response = await openai.responses.create({ model: MODEL, input: `Group only clearly related items. Return compact JSON mapping thread names to item IDs. Do not force unrelated items together: ${JSON.stringify(items)}`, max_output_tokens: 500 });
+  const response = await openai.responses.create({ model: MODEL, input: `Group only clearly related items. Return compact JSON mapping thread names to item IDs. Do not force unrelated items together: ${JSON.stringify(items)}`, reasoning: { effort: "none" }, max_output_tokens: 1200 });
   await addUsage(databases, userId, response.usage);
-  return { status: 200, body: { groups: JSON.parse(response.output_text), source: "model" } };
+  return { status: 200, body: { groups: parseModelJson(response, "Thread grouping"), source: "model" } };
 }
 
 async function handler({ req, res, log, error }) {
