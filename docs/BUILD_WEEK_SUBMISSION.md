@@ -20,7 +20,7 @@ Life admin rarely arrives as one tidy task. It arrives as a screenshot of a flig
 
 ### What it does
 
-LifeInbox turns text, images, PDFs, receipts, and recorded voice into editable tasks, events, expenses, and notes. One messy capture can become as many as 20 small, independent items. GPT-5.6 Luna identifies dates, times, priority, people, amounts, locations, missing information, confidence, a supporting source excerpt, and a suggested Life Thread for each item.
+LifeInbox turns text, images, PDFs, receipts, and recorded voice into editable tasks, events, expenses, and notes. One messy capture can become as many as 20 small, independent items. GPT-5.6 Terra with high reasoning identifies dates, times, priority, people, amounts, locations, missing information, confidence, a supporting source excerpt, and a suggested Life Thread for each item.
 
 The user reviews the entire batch, edits or removes individual items, and approves only what is correct. Approved items power a focused Today briefing, searchable active and completed inbox views, connected Life Threads, and Ask LifeInbox answers with clickable citations back to exact saved items.
 
@@ -28,7 +28,7 @@ The product includes a clean iOS-inspired white, graphite, and lime interface; a
 
 ### How we built it
 
-The client uses Next.js, React, TypeScript, GSAP, and an installable PWA shell. Appwrite provides email/password authentication, database collections, private file storage, document/file permissions, and two Node.js server functions. The AI orchestrator calls the OpenAI Responses API with GPT-5.6 Luna for strict structured extraction, grounded questions, cached daily briefings, and relationship grouping. A separate Ops function handles retention, workspace deletion, usage seams, and scheduled cleanup.
+The client uses Next.js, React, TypeScript, GSAP, and an installable PWA shell. Appwrite provides email/password authentication, database collections, private file storage, document/file permissions, and two Node.js server functions. The AI orchestrator calls the OpenAI Responses API with GPT-5.6 Terra and high reasoning for strict structured extraction, next-action planning, grounded questions, cached daily briefings, and relationship grouping. A separate Ops function handles retention, workspace deletion, usage seams, and scheduled cleanup.
 
 Capture extraction uses strict Structured Outputs with a canonical `items[]` response. The orchestrator decomposes compound captures, validates supporting evidence, removes duplicate intent, normalizes dates and times conservatively, and handles refusal, incomplete, empty, or malformed model output safely. The client retains compatibility with the legacy `item` alias while treating `items[]` as the complete result.
 
@@ -90,7 +90,7 @@ Open a prepared temporary account and show the empty Today screen.
 
 ### 0:35–1:12 — compound capture and batch review
 
-> I will drop in one messy note: renew my insurance Friday at five, email the receipt to Maya, and book a dentist appointment next Tuesday. The server-side OpenAI function uses GPT-5.6 Luna and strict Structured Outputs to find every distinct intent, verify it against source evidence, and return three atomic items.
+> I will drop in one messy note: renew my insurance Friday at five, email the receipt to Maya, and book a dentist appointment next Tuesday. The server-side OpenAI function uses GPT-5.6 Terra, high reasoning, and strict Structured Outputs to find every distinct intent, verify it against source evidence, and return three atomic items.
 
 Paste the sample. Show the three review tabs, confidence, source context, editable fields, and approve-all action. Do not spend time editing unless a field needs correction.
 

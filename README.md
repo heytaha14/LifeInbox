@@ -3,7 +3,7 @@
 > Turn screenshots, receipts, PDFs, voice notes, and messy thoughts into clear next steps.
 
 [![OpenAI Build Week](https://img.shields.io/badge/OpenAI-Build%20Week-111827)](https://openai.devpost.com/)
-[![GPT-5.6 Luna](https://img.shields.io/badge/OpenAI-GPT--5.6%20Luna-7357e8)](https://developers.openai.com/api/docs/models/gpt-5.6-luna)
+[![GPT-5.6 Terra](https://img.shields.io/badge/OpenAI-GPT--5.6%20Terra-78e957)](https://developers.openai.com/api/docs/models/gpt-5.6-terra)
 [![Appwrite](https://img.shields.io/badge/BaaS-Appwrite-f02e65)](https://appwrite.io/)
 [![MIT License](https://img.shields.io/badge/license-MIT-22c55e)](LICENSE)
 
@@ -43,7 +43,7 @@ Demo mode is intentionally isolated from authenticated accounts. New real accoun
 - Appwrite email/password sign-up, login, session restore, recovery, and logout
 - Real empty workspaces with demo data isolated to explicit demo mode
 - Text, image, PDF, and browser-recorded voice capture
-- GPT-5.6 Luna Structured Outputs that split one capture into as many as 20 atomic items
+- GPT-5.6 Terra Structured Outputs that split one capture into as many as 20 atomic items
 - Source-evidence, date/time, enum, and duplicate-intent validation with safe refusal/incomplete-output handling
 - Batch review with per-item tabs, confidence, missing-information guidance, editing, removal, and approve-all
 - Permissioned Appwrite rows and files owned by the signed-in user
@@ -67,7 +67,7 @@ flowchart LR
   W --> D["Appwrite Database"]
   W --> S["Private Appwrite Storage"]
   W --> F["AI Orchestrator Function"]
-  F --> O["OpenAI Responses API\nGPT-5.6 Luna"]
+  F --> O["OpenAI Responses API\nGPT-5.6 Terra"]
   F --> D
   F --> S
   X["Scheduled Ops Function"] --> D
@@ -78,10 +78,10 @@ The browser receives only public Appwrite identifiers. `OPENAI_API_KEY`, `OPS_SE
 
 ## How GPT-5.6 is used
 
-LifeInbox uses the OpenAI Responses API with `gpt-5.6-luna` inside the Appwrite `ai-orchestrator` function.
+LifeInbox uses the OpenAI Responses API with `gpt-5.6-terra` and high reasoning effort inside the Appwrite `ai-orchestrator` function.
 
 - **Capture extraction:** converts unstructured text, images, PDFs, and voice transcripts into a strict `items[]` schema containing up to 20 independent tasks, events, expenses, and notes.
-- **Grounded questions:** retrieves relevant user-owned actions first, then asks GPT-5.6 to answer only from that supplied context and cite supporting item IDs.
+- **Superbrain questions:** ranks a bounded set of user-owned records, then uses a strict schema to return a grounded answer, concrete next actions, useful insights, and supporting item IDs.
 - **Daily briefings:** summarizes at most three relevant next steps and caches them by date and item-version hash.
 - **Life Thread grouping:** proposes groups only when deterministic relationships are unavailable.
 
@@ -95,7 +95,7 @@ Codex was the primary engineering collaborator across the submission-period buil
 - Implementing authentication, database schemas, indexes, file storage, and two server functions
 - Building and polishing the iOS-inspired white/lime landing page, responsive phone, tablet, desktop, and PWA experiences
 - Tracing live Appwrite execution failures to empty structured output and schema-unsafe persistence
-- Migrating the production model to GPT-5.6 Luna and hardening atomic decomposition, evidence validation, parsing, and retry behavior
+- Migrating the production model to GPT-5.6 Terra with high reasoning and hardening atomic decomposition, evidence validation, structured planning, parsing, and retry behavior
 - Separating demo state from real accounts and replacing fake dashboard values with real calculations
 - Implementing batch review, persistent Life Threads, grounded citations, designed PDF export, deletion, and account cleanup
 - Running lint, builds, automated tests, production deployment, and full browser smoke tests
@@ -106,7 +106,7 @@ Codex was the primary engineering collaborator across the submission-period buil
 - The minimal iOS-inspired white/lime product direction and review-before-save trust model.
 - Appwrite as the BaaS and the choice to keep all AI secrets in server functions.
 - Non-destructive Life Thread deletion: deleting a group must not delete its underlying items.
-- GPT-5.6 Luna as the production model for a practical intelligence/cost balance.
+- GPT-5.6 Terra as the production model for a stronger intelligence/cost balance.
 
 The dated commit history provides submission-period implementation evidence. The production repair and real-data work are captured in commits `62b5257` and `6d80844`.
 
@@ -148,7 +148,7 @@ Then follow [docs/SETUP.md](docs/SETUP.md). In short:
 2. Add the public Appwrite endpoint/project values and one-time bootstrap key to `.env.local`.
 3. Run `npm run appwrite:setup` to create collections, indexes, permissions, and storage.
 4. Deploy the Appwrite functions.
-5. Add `OPENAI_API_KEY` and `OPENAI_MODEL=gpt-5.6-luna` only to the AI function.
+5. Add `OPENAI_API_KEY` and `OPENAI_MODEL=gpt-5.6-terra` only to the AI function.
 6. Add `OPS_SECRET` and `FILE_RETENTION_DAYS=30` only to the Ops function.
 7. Restart the app and create a real account.
 

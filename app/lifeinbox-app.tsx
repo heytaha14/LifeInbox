@@ -262,7 +262,7 @@ function InboxView({ items, query, onDone, onOpen, onCapture }: { items: LifeIte
     return statusMatches && typeMatches && `${item.title} ${item.summary} ${item.threadName}`.toLowerCase().includes(query.toLowerCase());
   });
   return <div className="view inbox-view">
-    <div className="view-heading split" data-animate><div><span className="date-label">EVERYTHING YOU&apos;VE CAPTURED</span><h1>Your inbox</h1><p>{filtered.length} items ready to review, schedule, or file away.</p></div><button className="button" onClick={onCapture}><Plus size={16} /> New capture</button></div>
+    <div className="view-heading split" data-animate><div><span className="date-label">EVERYTHING YOU&apos;VE CAPTURED</span><h1>Your inbox</h1><p>{filtered.length} {filtered.length === 1 ? "item" : "items"} ready to review, schedule, or file away.</p></div><button className="button" onClick={onCapture}><Plus size={16} /> New capture</button></div>
     <div className="filter-row" data-animate>{(["all", "task", "event", "expense", "note", "done"] as const).map((value) => <button key={value} className={filter === value ? "active" : ""} onClick={() => setFilter(value)}>{value === "all" ? "Open" : value === "done" ? "Completed" : typeMeta[value].label}{(value === "all" || value === "done") && <span>{items.filter((item) => value === "done" ? item.status === "done" : item.status !== "done").length}</span>}</button>)}</div>
     <section className="inbox-panel panel" data-animate>{filtered.length ? <>{filtered.map((item) => <LifeItemRow key={item.id} item={item} onDone={onDone} onOpen={onOpen} dense />)}<div className="list-end"><CheckCircle2 size={16} /> You’re all caught up beyond these items.</div></> : <div className="empty-state"><span><Inbox size={24} /></span><h3>No items found</h3><p>Try another filter or capture something new.</p><button onClick={onCapture}>Capture anything</button></div>}</section>
   </div>;
@@ -284,32 +284,63 @@ function NewThreadModal({ onClose, onCreate }: { onClose: () => void; onCreate: 
   return <div className="modal-scrim"><section className="small-modal" role="dialog" aria-modal="true" aria-labelledby="thread-title"><div className="modal-head"><div><span><Gift size={18} /></span><div><h2 id="thread-title">Start a Life Thread</h2><p>Give a plan, person, or project a calm home.</p></div></div><button className="modal-close" onClick={onClose}><X size={18} /></button></div><div className="small-modal-body"><label>Thread name<input autoFocus value={name} onChange={(event) => setName(event.target.value)} placeholder="e.g. Japan adventure" /></label><label>First next step<input value={nextStep} onChange={(event) => setNextStep(event.target.value)} placeholder="e.g. Compare flights" /></label></div><div className="capture-footer"><p><Sparkles size={13} /> You can add items anytime</p><div><button className="button button-ghost" onClick={onClose}>Cancel</button><button className="button" disabled={!name.trim()} onClick={() => onCreate({ id: `thread-${Date.now()}`, name: name.trim(), eyebrow: "Personal", color: "#78e957", itemIds: [], nextStep: nextStep.trim() || "Add the first item", dateRange: "New" })}>Create thread <ArrowRight size={15} /></button></div></div></section></div>;
 }
 
+type BrainAction = { title: string; why: string; itemId?: string | null };
+type AskMessage = { role: "user" | "assistant"; text: string; citations?: string[]; nextActions?: BrainAction[]; insights?: string[] };
+
+function parseBrainActions(value: unknown): BrainAction[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) => {
+    if (!entry || typeof entry !== "object") return [];
+    const action = entry as Record<string, unknown>;
+    const title = String(action.title || "").trim();
+    const why = String(action.why || "").trim();
+    if (!title || !why) return [];
+    return [{ title, why, itemId: action.itemId ? String(action.itemId) : null }];
+  });
+}
+
+function BrainPlan({ actions, items, onOpen }: { actions: BrainAction[]; items: LifeItem[]; onOpen: (item: LifeItem) => void }) {
+  return <div className="brain-plan"><b>Best next moves</b>{actions.map((action, index) => {
+    const item = action.itemId ? items.find((candidate) => candidate.id === action.itemId) : undefined;
+    const content = <><span>{index + 1}</span><div><strong>{action.title}</strong><small>{action.why}</small></div>{item && <ArrowRight size={14} />}</>;
+    return item
+      ? <button type="button" key={`${action.title}-${index}`} onClick={() => onOpen(item)}>{content}</button>
+      : <div className="brain-action" key={`${action.title}-${index}`}>{content}</div>;
+  })}</div>;
+}
+
 function AskView({ items, demo, onOpen }: { items: LifeItem[]; demo: boolean; onOpen: (item: LifeItem) => void }) {
-  const [messages, setMessages] = useState<{ role: "user" | "assistant"; text: string; citations?: string[] }[]>([{ role: "assistant", text: "Ask me about anything you’ve saved. I’ll use your own items and show exactly where the answer came from." }]);
+  const [messages, setMessages] = useState<AskMessage[]>([{ role: "assistant", text: "Ask me anything you’ve saved. I’ll reason across your tasks, dates, payments, and plans—then tell you the clearest next move." }]);
   const [input, setInput] = useState(""); const [thinking, setThinking] = useState(false);
   async function ask(question: string) {
     if (!question.trim()) return; setMessages((m) => [...m, { role: "user", text: question }]); setInput(""); setThinking(true);
     let answer = items.length ? `Your most important saved items are: ${items.filter((item) => item.status !== "done").slice(0, 3).map((item) => item.title).join(", ")}.` : "Your LifeInbox is empty. Capture your first item and I can answer questions grounded in it.";
     let citations = items.filter((item) => item.status !== "done").slice(0, 3).map((item) => item.id);
+    let nextActions: BrainAction[] = items.filter((item) => item.status !== "done").slice(0, 3).map((item) => ({ title: item.title, why: item.dueLabel || "This is one of your highest-priority open items.", itemId: item.id }));
+    let insights: string[] = [];
     try {
       if (!demo) {
         const result = await askOrExtract("ask", { question });
         if (result.answer) answer = String(result.answer);
         citations = Array.isArray(result.citations) ? result.citations.map(String) : [];
+        nextActions = parseBrainActions(result.nextActions);
+        insights = Array.isArray(result.insights) ? result.insights.map(String).filter(Boolean) : [];
       }
     } catch (caught) {
       answer = caught instanceof Error ? `I couldn’t complete that request: ${caught.message}` : "I couldn’t complete that request right now. Please try again.";
       citations = [];
+      nextActions = [];
+      insights = [];
     } finally {
       setThinking(false);
     }
-    setMessages((m) => [...m, { role: "assistant", text: answer, citations }]);
+    setMessages((m) => [...m, { role: "assistant", text: answer, citations, nextActions, insights }]);
   }
   return <div className="view ask-view">
-    <div className="ask-header" data-animate><span className="ask-spark"><Sparkles size={22} /></span><h1>Ask LifeInbox</h1><p>Answers grounded in the things you’ve captured.</p></div>
-    <div className="chat-panel" data-animate><div className="chat-messages">{messages.map((message, index) => <div key={index} className={`message ${message.role}`}><span>{message.role === "assistant" ? <Sparkles size={15} /> : <User size={15} />}</span><div><p>{message.text}</p>{message.citations && <div className="citations">{message.citations.map((id) => { const item = items.find((i) => i.id === id); return item && <button key={id} onClick={() => onOpen(item)}><FileText size={12} /> {item.title}</button>; })}</div>}</div></div>)}{thinking && <div className="message assistant"><span><Sparkles size={15} /></span><div className="typing"><i /><i /><i /></div></div>}</div>
+    <div className="ask-header" data-animate><span className="ask-spark"><Sparkles size={22} /></span><span className="brain-badge"><Zap size={12} /> GPT-5.6 Terra · high reasoning</span><h1>Ask LifeInbox</h1><p>Your private superbrain for deciding what matters and what to do next.</p></div>
+    <div className="chat-panel" data-animate><div className="chat-messages">{messages.map((message, index) => <div key={index} className={`message ${message.role}`}><span>{message.role === "assistant" ? <Sparkles size={15} /> : <User size={15} />}</span><div><p>{message.text}</p>{message.nextActions && message.nextActions.length > 0 && <BrainPlan actions={message.nextActions} items={items} onOpen={onOpen} />}{message.insights && message.insights.length > 0 && <div className="brain-insights"><b>Worth noticing</b>{message.insights.map((insight) => <span key={insight}>{insight}</span>)}</div>}{message.citations && <div className="citations">{message.citations.map((id) => { const item = items.find((i) => i.id === id); return item && <button key={id} onClick={() => onOpen(item)}><FileText size={12} /> {item.title}</button>; })}</div>}</div></div>)}{thinking && <div className="message assistant"><span><Sparkles size={15} /></span><div className="thinking-copy"><div className="typing"><i /><i /><i /></div><small>Terra is checking priorities, dates, and dependencies…</small></div></div>}</div>
       {messages.length === 1 && <div className="suggestions"><span>Try asking</span>{["What is due this week?", "Show my Goa trip items", "What should I do first?"].map((q) => <button key={q} onClick={() => ask(q)}>{q}<ArrowRight size={14} /></button>)}</div>}
-      <form className="ask-box" onSubmit={(e) => { e.preventDefault(); void ask(input); }}><MessageCircleQuestion size={18} /><input value={input} onChange={(e) => setInput(e.target.value)} placeholder="Ask about dates, plans, payments, people..." aria-label="Ask LifeInbox" /><button disabled={!input.trim() || thinking} aria-label="Send question"><Send size={16} /></button></form><small className="ask-note"><ShieldCheck size={12} /> Answers only use items in your LifeInbox. Citations are always shown.</small></div>
+      <form className="ask-box" onSubmit={(e) => { e.preventDefault(); void ask(input); }}><MessageCircleQuestion size={18} /><input value={input} onChange={(e) => setInput(e.target.value)} placeholder="Ask what matters, what is blocked, or what to do next..." aria-label="Ask LifeInbox" /><button disabled={!input.trim() || thinking} aria-label="Send question"><Send size={16} /></button></form><small className="ask-note"><ShieldCheck size={12} /> Grounded only in your LifeInbox. Actions and citations stay linked to the source.</small></div>
   </div>;
 }
 
@@ -451,7 +482,7 @@ function ReviewModal({ drafts, original, fileName, threads, onChange, onClose, o
 
 function ItemDetail({ item, onClose, onDone, onDelete, onSnooze }: { item: LifeItem; onClose: () => void; onDone: (id: string) => void; onDelete: (id: string) => void; onSnooze: (id: string) => void }) {
   const meta = typeMeta[item.type]; const Icon = meta.icon;
-  return <div className="drawer-scrim" onClick={onClose}><aside className="item-drawer" onClick={(e) => e.stopPropagation()}><div className="item-drawer-head"><span className={`type-icon ${meta.color}`}><Icon size={18} /></span><button className="modal-close" onClick={onClose}><X size={18} /></button></div><span className="date-label">{meta.label} · {item.confidence}% confidence</span><h2>{item.title}</h2><p>{item.summary}</p><div className="detail-grid"><div><span><Clock3 size={14} /> When</span><b>{item.dueLabel ?? "No date"}</b></div>{item.amount && <div><span><CircleDollarSign size={14} /> Amount</span><b>{item.amount}</b></div>}{item.location && <div><span><Tag size={14} /> Location</span><b>{item.location}</b></div>}<div><span><Layers3 size={14} /> Thread</span><b>{item.threadName ?? "Unsorted"}</b></div></div><div className="detail-source"><Fingerprint size={17} /><div><b>Captured from {item.source}</b><small>{new Date(item.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</small></div></div><div className="drawer-actions"><button className="button" onClick={() => { onDone(item.id); onClose(); }}><Check size={15} /> Mark complete</button><button className="button button-ghost" onClick={() => { onSnooze(item.id); onClose(); }}><Clock3 size={15} /> Snooze</button><button className="danger-icon" onClick={() => { onDelete(item.id); onClose(); }}><Trash2 size={16} /></button></div></aside></div>;
+  return <div className="drawer-scrim" onClick={onClose}><aside className="item-drawer" onClick={(e) => e.stopPropagation()}><div className="item-drawer-head"><span className={`type-icon ${meta.color}`}><Icon size={18} /></span><button className="modal-close" onClick={onClose} aria-label="Close item details"><X size={18} /></button></div><span className="date-label">{meta.label} · {item.confidence}% confidence</span><h2>{item.title}</h2><p>{item.summary}</p><div className="detail-grid"><div><span><Clock3 size={14} /> When</span><b>{item.dueLabel ?? "No date"}</b></div>{item.amount && <div><span><CircleDollarSign size={14} /> Amount</span><b>{item.amount}</b></div>}{item.location && <div><span><Tag size={14} /> Location</span><b>{item.location}</b></div>}<div><span><Layers3 size={14} /> Thread</span><b>{item.threadName ?? "Unsorted"}</b></div></div><div className="detail-source"><Fingerprint size={17} /><div><b>Captured from {item.source}</b><small>{new Date(item.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</small></div></div><div className="drawer-actions"><button className="button" onClick={() => { onDone(item.id); onClose(); }}><Check size={15} /> Mark complete</button><button className="button button-ghost" onClick={() => { onSnooze(item.id); onClose(); }}><Clock3 size={15} /> Snooze</button><button className="danger-icon" aria-label={`Delete ${item.title}`} onClick={() => { onDelete(item.id); onClose(); }}><Trash2 size={16} /></button></div></aside></div>;
 }
 
 export function LifeInboxApp() {

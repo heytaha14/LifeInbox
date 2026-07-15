@@ -64,7 +64,7 @@ The function decomposes the capture into as many as 20 independent, source-groun
   "itemCount": 2,
   "needsReview": false,
   "needsReviewItemIds": [],
-  "model": "gpt-5.6-luna"
+  "model": "gpt-5.6-terra"
 }
 ```
 
@@ -76,7 +76,7 @@ Low-confidence items or items with entries in `missingFields` are marked `needsR
 
 Request body: `{ "route": "ask", "question": "What is due this week?" }`.
 
-Returns `{ answer, citations }`; every citation is an Appwrite action document ID included in the answer context. The client resolves those IDs to clickable chips that open the supporting saved item.
+Returns `{ answer, nextActions, insights, citations, model, reasoningEffort }`. Terra uses high reasoning over a bounded, permissioned record set and a strict output schema. Every citation and non-null `nextActions[].itemId` is validated against an Appwrite action document included in the model context. The client renders the plan and resolves source IDs to clickable chips.
 
 ## `POST /today-brief`
 

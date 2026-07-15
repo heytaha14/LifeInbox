@@ -66,7 +66,10 @@ test("keeps real workspaces free of demo state and persists production flows", a
   assert.match(client, /LifeItemUpdate/);
   assert.match(client, /id: document\.\$id/);
   assert.match(client, /responseStatusCode >= 400/);
-  assert.match(orchestrator, /gpt-5\.6-luna/);
+  assert.match(orchestrator, /gpt-5\.6-terra/);
+  assert.match(orchestrator, /reasoning: \{ effort: "high" \}/);
+  assert.match(orchestrator, /lifeinbox_superbrain/);
+  assert.match(orchestrator, /nextActions/);
   assert.match(orchestrator, /parseModelJson/);
   assert.match(orchestrator, /MAX_EXTRACTED_ITEMS = 20/);
   assert.match(orchestrator, /required: \["items"\]/);
@@ -125,10 +128,11 @@ test("ships a complete installable PWA", async () => {
   assert.equal(parsed.display, "standalone");
   assert.ok(parsed.icons.some((icon) => icon.sizes === "192x192"));
   assert.ok(parsed.icons.some((icon) => icon.sizes === "512x512" && icon.purpose === "maskable"));
-  assert.match(serviceWorker, /lifeinbox-shell-v5/);
+  assert.match(serviceWorker, /lifeinbox-shell-v6/);
   assert.match(serviceWorker, /request\.mode === "navigate"/);
   assert.match(layout, /manifest\.webmanifest/);
   assert.match(client, /beforeinstallprompt/);
+  assert.match(client, /controllerchange/);
   await access(new URL("../public/icons/icon-192.png", import.meta.url));
   await access(new URL("../public/icons/icon-512.png", import.meta.url));
   await access(new URL("../public/icons/apple-touch-icon.png", import.meta.url));

@@ -17,6 +17,8 @@ export function PwaClient() {
   const [online, setOnline] = useState(() => typeof navigator === "undefined" || navigator.onLine !== false);
 
   useEffect(() => {
+    let refreshing = false;
+    let registration: ServiceWorkerRegistration | null = null;
     const onBeforeInstall = (event: Event) => {
       event.preventDefault();
       setInstallPrompt(event as InstallPromptEvent);
@@ -30,10 +32,23 @@ export function PwaClient() {
     window.addEventListener("online", onOnline);
     window.addEventListener("offline", onOffline);
 
+    const onControllerChange = () => {
+      if (refreshing) return;
+      refreshing = true;
+      window.location.reload();
+    };
+    const refreshWorker = () => { if (document.visibilityState === "visible") void registration?.update(); };
+
     if ("serviceWorker" in navigator) {
-      const register = () => navigator.serviceWorker.register("/sw.js", { scope: "/", updateViaCache: "none" }).catch(() => undefined);
+      navigator.serviceWorker.addEventListener("controllerchange", onControllerChange);
+      const register = async () => {
+        registration = await navigator.serviceWorker.register("/sw.js", { scope: "/", updateViaCache: "none" });
+        await registration.update();
+        registration.waiting?.postMessage("SKIP_WAITING");
+      };
       if (document.readyState === "complete") void register();
       else window.addEventListener("load", register, { once: true });
+      document.addEventListener("visibilitychange", refreshWorker);
     }
 
     return () => {
@@ -41,6 +56,8 @@ export function PwaClient() {
       window.removeEventListener("appinstalled", onInstalled);
       window.removeEventListener("online", onOnline);
       window.removeEventListener("offline", onOffline);
+      navigator.serviceWorker?.removeEventListener("controllerchange", onControllerChange);
+      document.removeEventListener("visibilitychange", refreshWorker);
     };
   }, []);
 

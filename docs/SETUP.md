@@ -63,7 +63,7 @@ The checked-in function scopes create a short-lived dynamic Appwrite key for eac
 
 ```env
 OPENAI_API_KEY=<YOUR_OPENAI_PROJECT_KEY>
-OPENAI_MODEL=gpt-5.6-luna
+OPENAI_MODEL=gpt-5.6-terra
 FREE_DAILY_CAPTURE_LIMIT=50
 ```
 
