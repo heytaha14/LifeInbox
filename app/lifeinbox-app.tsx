@@ -3,15 +3,16 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import gsap from "gsap";
 import {
-  Archive, ArrowLeft, ArrowRight, Bell, CalendarDays, Check, CheckCircle2, ChevronDown, ChevronRight,
-  CircleDollarSign, Clock3, FileText, Fingerprint, HelpCircle, Home, Image as ImageIcon, Inbox, Layers3,
+  ArrowLeft, ArrowRight, Bell, CalendarDays, Check, CheckCircle2, ChevronDown, ChevronRight,
+  CircleDollarSign, Clock3, Download, FileText, Fingerprint, Gift, HelpCircle, Home, Image as ImageIcon, Inbox, Layers3,
   LoaderCircle, LockKeyhole, LogOut, Menu, MessageCircleQuestion, Mic, MoreHorizontal, Paperclip,
   Plus, Search, Send, Settings, ShieldCheck, Sparkles, Tag, Trash2, UploadCloud, User, WandSparkles, X,
   Zap,
 } from "lucide-react";
 import {
-  askOrExtract, getCurrentUser, isAppwriteConfigured, listLifeItems, saveLifeItem, signIn, signOut, signUp,
-  uploadCaptureFile, type AuthUser,
+  askOrExtract, completePasswordReset, deleteLifeItem, getCurrentUser, isAppwriteConfigured, listLifeItems, listLifeThreads, requestPasswordReset,
+  runOps, saveCaptureRecord, saveLifeItem, saveLifeThread, savePreferences, signIn, signOut, signUp, updateLifeItem,
+  updateProfileName, uploadCaptureFile, type AuthUser,
 } from "@/lib/appwrite";
 import { makeDraft, seedItems, seedThreads, type ItemType, type LifeItem, type LifeThread } from "@/lib/lifeinbox";
 
@@ -126,6 +127,7 @@ function AuthScreen({ initialMode, onBack, onSuccess, onDemo }: { initialMode: A
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [recoverySent, setRecoverySent] = useState(false);
 
   async function submit(event: FormEvent) {
     event.preventDefault(); setError("");
@@ -135,6 +137,15 @@ function AuthScreen({ initialMode, onBack, onSuccess, onDemo }: { initialMode: A
       const user = mode === "signup" ? await signUp(name, email, password) : await signIn(email, password);
       onSuccess(user);
     } catch (err) { setError(err instanceof Error ? err.message : "We couldn't complete that request."); }
+    finally { setLoading(false); }
+  }
+
+  async function recover() {
+    setError("");
+    if (!email) { setError("Enter your email address first."); return; }
+    if (!isAppwriteConfigured) { setError("Connect Appwrite first to send real recovery emails."); return; }
+    try { setLoading(true); await requestPasswordReset(email); setRecoverySent(true); }
+    catch (err) { setError(err instanceof Error ? err.message : "We couldn't send the recovery email."); }
     finally { setLoading(false); }
   }
 
@@ -151,6 +162,8 @@ function AuthScreen({ initialMode, onBack, onSuccess, onDemo }: { initialMode: A
             {mode === "signup" && <label>Full name<input value={name} onChange={(e) => setName(e.target.value)} placeholder="Taha Ahmed" required autoComplete="name" /></label>}
             <label>Email address<input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" type="email" required autoComplete="email" /></label>
             <label>Password<input value={password} onChange={(e) => setPassword(e.target.value)} placeholder="At least 8 characters" type="password" minLength={8} required autoComplete={mode === "signup" ? "new-password" : "current-password"} /></label>
+            {mode === "signin" && <button type="button" className="forgot-button" onClick={() => void recover()}>Forgot password?</button>}
+            {recoverySent && <div className="auth-success"><CheckCircle2 size={16} /> Recovery email sent. Check your inbox.</div>}
             {error && <div className="auth-error"><HelpCircle size={16} /> {error}</div>}
             <button className="button button-full button-large" disabled={loading}>{loading ? <LoaderCircle className="spin" size={18} /> : null}{mode === "signup" ? "Create free account" : "Log in"}<ArrowRight size={17} /></button>
           </form>
@@ -161,6 +174,12 @@ function AuthScreen({ initialMode, onBack, onSuccess, onDemo }: { initialMode: A
       </div>
     </div>
   );
+}
+
+function RecoveryScreen({ userId, secret, onDone }: { userId: string; secret: string; onDone: () => void }) {
+  const [password, setPassword] = useState(""); const [confirm, setConfirm] = useState(""); const [error, setError] = useState(""); const [loading, setLoading] = useState(false);
+  async function submit(event: FormEvent) { event.preventDefault(); if (password !== confirm) { setError("Passwords do not match."); return; } try { setLoading(true); await completePasswordReset(userId, secret, password); onDone(); } catch (caught) { setError(caught instanceof Error ? caught.message : "We couldn't reset the password."); } finally { setLoading(false); } }
+  return <div className="auth-page"><div className="auth-brand"><Brand /></div><div className="recovery-wrap"><section className="auth-card"><span className="auth-kicker">Fresh start</span><h2>Choose a new password.</h2><p>Use at least eight characters you haven&apos;t used here before.</p><form onSubmit={submit}><label>New password<input type="password" minLength={8} value={password} onChange={(event) => setPassword(event.target.value)} required /></label><label>Confirm password<input type="password" minLength={8} value={confirm} onChange={(event) => setConfirm(event.target.value)} required /></label>{error && <div className="auth-error"><HelpCircle size={16} /> {error}</div>}<button className="button button-full button-large" disabled={loading}>{loading ? <LoaderCircle className="spin" size={18} /> : <Check size={18} />} Reset password</button></form></section></div></div>;
 }
 
 function Sidebar({ view, setView, user, demo, onCapture, onLogout }: { view: View; setView: (v: View) => void; user: AuthUser; demo: boolean; onCapture: () => void; onLogout: () => void }) {
@@ -191,13 +210,13 @@ function Topbar({ view, onCapture, query, setQuery }: { view: View; onCapture: (
   return <header className="app-topbar"><div><span>{labels[view]}</span></div><div className="top-actions">{view === "inbox" && <label className="top-search"><Search size={16} /><input aria-label="Search inbox" placeholder="Search your inbox" value={query} onChange={(e) => setQuery(e.target.value)} /></label>}<button className="icon-button" aria-label="Notifications"><Bell size={18} /><i /></button><button className="top-capture" onClick={onCapture}><Plus size={16} /> Capture</button></div></header>;
 }
 
-function TodayView({ items, name, onDone, onCapture, onOpen }: { items: LifeItem[]; name: string; onDone: (id: string) => void; onCapture: () => void; onOpen: (item: LifeItem) => void }) {
+function TodayView({ items, name, briefing, onDone, onCapture, onOpen, onViewAll }: { items: LifeItem[]; name: string; briefing: string; onDone: (id: string) => void; onCapture: () => void; onOpen: (item: LifeItem) => void; onViewAll: () => void }) {
   const todayItems = items.filter((i) => i.status === "today" || (i.priority === "high" && i.status !== "done"));
   return <div className="view today-view">
     <div className="view-heading" data-animate><span className="date-label">WEDNESDAY, 15 JULY</span><h1>Good morning, {name.split(" ")[0]}.</h1><p>Here’s the small set of things worth seeing today.</p></div>
-    <section className="briefing-card" data-animate><div className="briefing-copy"><span><Sparkles size={15} /> TODAY&apos;S BRIEFING</span><h2>Three things deserve your attention.</h2><p>Renew your car insurance before 5 PM. Your Goa flight check-in opens tomorrow, and there’s one payment to settle this week.</p><div><button>Show me what to do first <ArrowRight size={15} /></button><small>Updated 8:30 AM</small></div></div><div className="briefing-art"><span className="orb-main">3</span><span /><span /><span /></div></section>
+    <section className="briefing-card" data-animate><div className="briefing-copy"><span><Sparkles size={15} /> TODAY&apos;S BRIEFING</span><h2>Three things deserve your attention.</h2><p>{briefing}</p><div><button onClick={onViewAll}>Show me what to do first <ArrowRight size={15} /></button><small>Updated just now</small></div></div><div className="briefing-art"><span className="orb-main">3</span><span /><span /><span /></div></section>
     <div className="today-grid">
-      <section className="panel" data-animate><div className="panel-head"><div><span>Up next</span><small>{todayItems.length} active items</small></div><button>View all <ArrowRight size={14} /></button></div><div className="focus-list">{todayItems.map((item) => <LifeItemRow key={item.id} item={item} onDone={onDone} onOpen={onOpen} />)}</div></section>
+      <section className="panel" data-animate><div className="panel-head"><div><span>Up next</span><small>{todayItems.length} active items</small></div><button onClick={onViewAll}>View all <ArrowRight size={14} /></button></div><div className="focus-list">{todayItems.map((item) => <LifeItemRow key={item.id} item={item} onDone={onDone} onOpen={onOpen} />)}</div></section>
       <aside className="right-stack">
         <section className="panel progress-panel" data-animate><div className="panel-head"><div><span>This week</span><small>A steady start</small></div><b>68%</b></div><div className="progress-track"><span /></div><div className="stats"><div><b>5</b><small>Completed</small></div><div><b>4</b><small>Remaining</small></div><div><b>2</b><small>Threads</small></div></div></section>
         <section className="quick-capture-card" data-animate><span><WandSparkles size={19} /></span><h3>What’s on your mind?</h3><p>Don’t organize it. Just get it out.</p><button onClick={onCapture}><Plus size={15} /> Capture anything</button></section>
@@ -211,7 +230,7 @@ function LifeItemRow({ item, onDone, onOpen, dense = false }: { item: LifeItem; 
   return <article className={`life-row ${dense ? "dense" : ""} ${item.status === "done" ? "completed" : ""}`}>
     <button className="check-button" onClick={() => onDone(item.id)} aria-label={item.status === "done" ? `Mark ${item.title} incomplete` : `Complete ${item.title}`}>{item.status === "done" && <Check size={13} />}</button>
     <button className="row-main" onClick={() => onOpen(item)}><span className={`type-icon ${meta.color}`}><Icon size={16} /></span><div><b>{item.title}</b><p>{item.summary}</p><div className="row-meta"><span className={item.priority === "high" ? "urgent" : ""}><Clock3 size={12} /> {item.dueLabel ?? "No date"}</span>{item.threadName && <span><Tag size={12} /> {item.threadName}</span>}</div></div></button>
-    <button className="more-button" aria-label={`More actions for ${item.title}`}><MoreHorizontal size={18} /></button>
+    <button className="more-button" onClick={() => onOpen(item)} aria-label={`More actions for ${item.title}`}><MoreHorizontal size={18} /></button>
   </article>;
 }
 
@@ -225,14 +244,20 @@ function InboxView({ items, query, onDone, onOpen, onCapture }: { items: LifeIte
   </div>;
 }
 
-function ThreadsView({ threads, items, onOpen }: { threads: LifeThread[]; items: LifeItem[]; onOpen: (item: LifeItem) => void }) {
+function ThreadsView({ threads, items, onOpen, onNewThread }: { threads: LifeThread[]; items: LifeItem[]; onOpen: (item: LifeItem) => void; onNewThread: () => void }) {
   const [selected, setSelected] = useState<LifeThread | null>(null);
   return <div className="view threads-view">
-    <div className="view-heading split" data-animate><div><span className="date-label">THE BIGGER PICTURE</span><h1>Life Threads</h1><p>Related details gather here automatically, so plans stay connected.</p></div><button className="button button-ghost"><Plus size={16} /> New thread</button></div>
+    <div className="view-heading split" data-animate><div><span className="date-label">THE BIGGER PICTURE</span><h1>Life Threads</h1><p>Related details gather here automatically, so plans stay connected.</p></div><button className="button button-ghost" onClick={onNewThread}><Plus size={16} /> New thread</button></div>
     <div className="thread-grid" data-animate>{threads.map((thread) => { const active = thread.itemIds.filter((id) => items.find((i) => i.id === id)?.status !== "done").length; return <button className="thread-card" key={thread.id} onClick={() => setSelected(thread)}><div className="thread-card-top"><span className="thread-monogram" style={{ backgroundColor: `${thread.color}20`, color: thread.color }}>{thread.name.slice(0, 2).toUpperCase()}</span><MoreHorizontal size={18} /></div><span className="thread-eyebrow">{thread.eyebrow}</span><h3>{thread.name}</h3><p>{active} active {active === 1 ? "item" : "items"} · {thread.dateRange}</p><div className="thread-next"><small>NEXT STEP</small><span>{thread.nextStep}<ArrowRight size={14} /></span></div><div className="thread-dots">{thread.itemIds.slice(0, 4).map((id, idx) => <i key={id} style={{ backgroundColor: idx === 0 ? thread.color : undefined }} />)}</div></button>; })}</div>
     <section className="thread-recent panel" data-animate><div className="panel-head"><div><span>Recently added</span><small>Items LifeInbox grouped for you</small></div></div>{items.slice(0, 3).map((item) => <LifeItemRow dense key={item.id} item={item} onDone={() => {}} onOpen={onOpen} />)}</section>
     {selected && <div className="drawer-scrim" onClick={() => setSelected(null)}><aside className="thread-drawer" onClick={(e) => e.stopPropagation()}><button className="modal-close" onClick={() => setSelected(null)}><X size={18} /></button><span className="thread-monogram large" style={{ backgroundColor: `${selected.color}20`, color: selected.color }}>{selected.name.slice(0, 2).toUpperCase()}</span><span className="date-label">{selected.eyebrow}</span><h2>{selected.name}</h2><p>{selected.dateRange}</p><div className="drawer-summary"><Sparkles size={16} /><span><b>Thread summary</b>Everything related to this plan lives together. Your next best step is <strong>{selected.nextStep.toLowerCase()}</strong>.</span></div><h3>Items in this thread</h3>{selected.itemIds.map((id) => { const item = items.find((i) => i.id === id); return item ? <LifeItemRow dense key={id} item={item} onDone={() => {}} onOpen={onOpen} /> : null; })}</aside></div>}
   </div>;
+}
+
+function NewThreadModal({ onClose, onCreate }: { onClose: () => void; onCreate: (thread: LifeThread) => void }) {
+  const [name, setName] = useState("");
+  const [nextStep, setNextStep] = useState("");
+  return <div className="modal-scrim"><section className="small-modal" role="dialog" aria-modal="true" aria-labelledby="thread-title"><div className="modal-head"><div><span><Gift size={18} /></span><div><h2 id="thread-title">Start a Life Thread</h2><p>Give a plan, person, or project a happy home.</p></div></div><button className="modal-close" onClick={onClose}><X size={18} /></button></div><div className="small-modal-body"><label>Thread name<input autoFocus value={name} onChange={(event) => setName(event.target.value)} placeholder="e.g. Japan adventure" /></label><label>First next step<input value={nextStep} onChange={(event) => setNextStep(event.target.value)} placeholder="e.g. Compare flights" /></label></div><div className="capture-footer"><p><Sparkles size={13} /> You can add items anytime</p><div><button className="button button-ghost" onClick={onClose}>Cancel</button><button className="button" disabled={!name.trim()} onClick={() => onCreate({ id: `thread-${Date.now()}`, name: name.trim(), eyebrow: "Personal", color: "#7c5cff", itemIds: [], nextStep: nextStep.trim() || "Add the first item", dateRange: "New" })}>Create thread <ArrowRight size={15} /></button></div></div></section></div>;
 }
 
 function AskView({ items }: { items: LifeItem[] }) {
@@ -253,15 +278,20 @@ function AskView({ items }: { items: LifeItem[] }) {
   </div>;
 }
 
-function SettingsView({ demo, onLogout }: { demo: boolean; onLogout: () => void }) {
-  const [retention, setRetention] = useState("30"); const [briefing, setBriefing] = useState(true); const [review, setReview] = useState(true);
+function SettingsView({ demo, user, items, onLogout, onToast, onReset }: { demo: boolean; user: AuthUser; items: LifeItem[]; onLogout: () => void; onToast: (message: string) => void; onReset: () => void }) {
+  const [section, setSection] = useState<"profile" | "usage" | "privacy" | "notifications">("profile");
+  const [retention, setRetention] = useState("30"); const [briefing, setBriefing] = useState(true); const [review, setReview] = useState(true); const [alerts, setAlerts] = useState(true);
+  const [editingName, setEditingName] = useState(false); const [displayName, setDisplayName] = useState(user.name);
+  async function persistPrefs() { if (!demo && isAppwriteConfigured) await savePreferences({ retentionDays: Number(retention), morningBriefing: briefing, alwaysReview: review, reminders: alerts }); onToast("Preferences saved"); }
+  function exportData() { const blob = new Blob([JSON.stringify({ exportedAt: new Date().toISOString(), items }, null, 2)], { type: "application/json" }); const url = URL.createObjectURL(blob); const anchor = document.createElement("a"); anchor.href = url; anchor.download = "lifeinbox-export.json"; anchor.click(); URL.revokeObjectURL(url); onToast("Your export is ready"); }
+  async function deleteWorkspace() { if (!window.confirm("Delete this LifeInbox workspace and all of its data? This cannot be undone.")) return; if (demo) { onReset(); return; } const result = await runOps("delete-account"); if (result?.deleted) { onToast("Workspace deleted"); onLogout(); } else onToast("Account deletion needs the Ops function to be deployed"); }
+  const nav = [{ id: "profile", label: "Profile", icon: User }, { id: "usage", label: "Usage & plan", icon: Zap }, { id: "privacy", label: "Privacy", icon: ShieldCheck }, { id: "notifications", label: "Notifications", icon: Bell }] as const;
   return <div className="view settings-view"><div className="view-heading" data-animate><span className="date-label">YOUR WORKSPACE</span><h1>Settings</h1><p>Manage your preferences, usage, privacy, and plan.</p></div>
-    <div className="settings-layout" data-animate><nav><button className="active"><User size={16} /> Profile</button><button><Zap size={16} /> Usage & plan</button><button><ShieldCheck size={16} /> Privacy</button><button><Bell size={16} /> Notifications</button></nav><div className="settings-content">
-      <section className="settings-section"><div><h2>Profile</h2><p>Your LifeInbox identity and account details.</p></div><div className="profile-row"><span>TA</span><div><b>Taha Ahmed</b><small>{demo ? "demo@lifeinbox.app" : "Your connected Appwrite account"}</small></div><button>Edit profile</button></div></section>
-      <section className="settings-section"><div><h2>Usage this month</h2><p>Your free plan resets on 1 August.</p></div><div className="usage-box"><div><span><b>18</b> / 50 captures</span><small>36% used</small></div><div className="usage-track"><span /></div><div className="usage-stats"><span><FileText size={15} /> 12 text</span><span><ImageIcon size={15} /> 4 images</span><span><Mic size={15} /> 2 voice</span></div></div><button className="button button-ghost button-small">View plans</button></section>
-      <section className="settings-section"><div><h2>Capture preferences</h2><p>Choose how LifeInbox handles extracted information.</p></div><SettingToggle title="Always review before save" text="Open the review screen even when confidence is high." checked={review} setChecked={setReview} /><SettingToggle title="Morning briefing" text="Prepare a concise daily briefing from relevant items." checked={briefing} setChecked={setBriefing} /></section>
-      <section className="settings-section"><div><h2>Privacy & retention</h2><p>Control how long original uploaded files are kept.</p></div><label className="select-setting"><div><b>Original file retention</b><small>Extracted actions stay until you delete them.</small></div><select value={retention} onChange={(e) => setRetention(e.target.value)}><option value="7">7 days</option><option value="30">30 days</option><option value="90">90 days</option><option value="0">Delete after processing</option></select></label><button className="plain-action"><Archive size={15} /> Export my data</button></section>
-      <section className="settings-section danger-section"><div><h2>Account</h2><p>Manage this session or permanently remove your workspace.</p></div><div><button className="button button-ghost" onClick={onLogout}><LogOut size={15} /> Log out</button><button className="danger-button"><Trash2 size={15} /> Delete workspace</button></div></section>
+    <div className="settings-layout" data-animate><nav>{nav.map((entry) => <button key={entry.id} className={section === entry.id ? "active" : ""} onClick={() => setSection(entry.id)}><entry.icon size={16} /> {entry.label}</button>)}</nav><div className="settings-content">
+      {section === "profile" && <><section className="settings-section"><div><h2>Profile</h2><p>Your LifeInbox identity and account details.</p></div><div className="profile-row"><span>{displayName.slice(0, 2).toUpperCase()}</span><div>{editingName ? <input className="profile-input" value={displayName} onChange={(event) => setDisplayName(event.target.value)} /> : <b>{displayName}</b>}<small>{user.email}</small></div><button onClick={() => { if (editingName) { if (!demo && isAppwriteConfigured) void updateProfileName(displayName); onToast("Profile name updated"); } setEditingName(!editingName); }}>{editingName ? "Save" : "Edit profile"}</button></div></section><section className="settings-section"><div><h2>Capture preferences</h2><p>Choose how LifeInbox handles extracted information.</p></div><SettingToggle title="Always review before save" text="Open the review screen even when confidence is high." checked={review} setChecked={setReview} /><SettingToggle title="Morning briefing" text="Prepare a concise daily briefing from relevant items." checked={briefing} setChecked={setBriefing} /><button className="button button-small settings-save" onClick={() => void persistPrefs()}>Save preferences</button></section></>}
+      {section === "usage" && <section className="settings-section"><div><h2>Usage this month</h2><p>Your free plan resets on 1 August.</p></div><div className="usage-box"><div><span><b>{Math.min(50, items.length + 13)}</b> / 50 captures</span><small>{Math.round(((items.length + 13) / 50) * 100)}% used</small></div><div className="usage-track"><span style={{ width: `${Math.min(100, ((items.length + 13) / 50) * 100)}%` }} /></div><div className="usage-stats"><span><FileText size={15} /> {items.filter((item) => item.source === "text").length} text</span><span><ImageIcon size={15} /> {items.filter((item) => item.source === "image" || item.source === "pdf").length} files</span><span><Mic size={15} /> {items.filter((item) => item.source === "voice").length} voice</span></div></div><div className="plan-card"><Gift size={20} /><div><b>Free plan</b><small>Every core LifeInbox feature is included.</small></div><span>₹0</span></div></section>}
+      {section === "privacy" && <><section className="settings-section"><div><h2>Privacy & retention</h2><p>Control how long original uploaded files are kept.</p></div><label className="select-setting"><div><b>Original file retention</b><small>Extracted actions stay until you delete them.</small></div><select value={retention} onChange={(e) => setRetention(e.target.value)}><option value="7">7 days</option><option value="30">30 days</option><option value="90">90 days</option><option value="0">Delete after processing</option></select></label><button className="plain-action" onClick={exportData}><Download size={15} /> Export my data</button><button className="button button-small settings-save" onClick={() => void persistPrefs()}>Save retention</button></section><section className="settings-section danger-section"><div><h2>Account</h2><p>Manage this session or permanently remove your workspace.</p></div><div><button className="button button-ghost" onClick={onLogout}><LogOut size={15} /> Log out</button><button className="danger-button" onClick={() => void deleteWorkspace()}><Trash2 size={15} /> Delete workspace</button></div></section></>}
+      {section === "notifications" && <section className="settings-section"><div><h2>Notifications</h2><p>Choose when LifeInbox gives you a cheerful nudge.</p></div><SettingToggle title="Due-date reminders" text="Get a reminder before high-priority items are due." checked={alerts} setChecked={setAlerts} /><SettingToggle title="Morning briefing" text="Prepare your daily top three every morning." checked={briefing} setChecked={setBriefing} /><button className="button button-small settings-save" onClick={() => void persistPrefs()}>Save notifications</button></section>}
     </div></div>
   </div>;
 }
@@ -271,21 +301,39 @@ function SettingToggle({ title, text, checked, setChecked }: { title: string; te
 }
 
 function CaptureModal({ user, onClose, onReview }: { user: AuthUser; onClose: () => void; onReview: (draft: LifeItem, original: string, fileName?: string) => void }) {
-  const [source, setSource] = useState<LifeItem["source"]>("text"); const [text, setText] = useState(""); const [file, setFile] = useState<File | null>(null); const [processing, setProcessing] = useState(false); const [drag, setDrag] = useState(false);
+  const [source, setSource] = useState<LifeItem["source"]>("text"); const [text, setText] = useState(""); const [file, setFile] = useState<File | null>(null); const [processing, setProcessing] = useState(false); const [drag, setDrag] = useState(false); const [recording, setRecording] = useState(false); const [error, setError] = useState("");
+  const recorderRef = useRef<MediaRecorder | null>(null); const chunksRef = useRef<Blob[]>([]);
+  function acceptFile(nextFile: File) { if (nextFile.size > 10 * 1024 * 1024) { setError("That file is over 10 MB. Choose a smaller version."); return; } setError(""); setFile(nextFile); }
+  async function toggleRecording() {
+    if (recording) { recorderRef.current?.stop(); return; }
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") { setError("Voice recording is not available in this browser."); return; }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true }); chunksRef.current = [];
+      const recorder = new MediaRecorder(stream); recorderRef.current = recorder;
+      recorder.ondataavailable = (event) => { if (event.data.size) chunksRef.current.push(event.data); };
+      recorder.onstop = () => { const mimeType = recorder.mimeType || "audio/webm"; const voiceFile = new File(chunksRef.current, `voice-${Date.now()}.webm`, { type: mimeType }); stream.getTracks().forEach((track) => track.stop()); setFile(voiceFile); setText("Voice note ready for transcription"); setRecording(false); };
+      recorder.start(); setRecording(true); setError("");
+    } catch { setError("Microphone access was not available. You can still type the note instead."); }
+  }
   async function process() {
     if (!text.trim() && !file) return; setProcessing(true);
     try {
-      if (file && isAppwriteConfigured && user.id !== "demo") await uploadCaptureFile(file, user.id);
+      let fileId: string | undefined;
+      if (isAppwriteConfigured && user.id !== "demo") {
+        if (file) { const uploaded = await uploadCaptureFile(file, user.id); fileId = uploaded.$id; }
+        await saveCaptureRecord({ source, rawText: text, fileId }, user.id);
+      }
       let draft = makeDraft(text || file?.name || "New capture", source);
-      if (isAppwriteConfigured) { const result = await askOrExtract("extract", { input: text, source, fileName: file?.name }); if (result?.item) draft = { ...draft, ...(result.item as Partial<LifeItem>) }; }
+      if (isAppwriteConfigured) { const result = await askOrExtract("extract", { input: text, source, fileId, fileName: file?.name, mimeType: file?.type }); if (result?.item) draft = { ...draft, ...(result.item as Partial<LifeItem>) }; }
       else await new Promise((resolve) => window.setTimeout(resolve, 720));
-      onReview(draft, text || "Uploaded file", file?.name);
+      onReview(draft, source === "voice" ? "Recorded voice note" : text || "Uploaded file", file?.name);
     } catch { onReview(makeDraft(text || file?.name || "New capture", source), text || "Uploaded file", file?.name); }
     finally { setProcessing(false); }
   }
-  return <div className="modal-scrim"><section className="capture-modal" role="dialog" aria-modal="true" aria-labelledby="capture-title"><div className="modal-head"><div><span><WandSparkles size={18} /></span><div><h2 id="capture-title">Capture anything</h2><p>Don’t organize it. LifeInbox will help.</p></div></div><button className="modal-close" onClick={onClose} aria-label="Close capture"><X size={18} /></button></div>
-    <div className="source-tabs">{([{ id: "text", label: "Text", icon: FileText }, { id: "image", label: "Image", icon: ImageIcon }, { id: "pdf", label: "PDF", icon: Paperclip }, { id: "voice", label: "Voice", icon: Mic }] as const).map((option) => <button key={option.id} className={source === option.id ? "active" : ""} onClick={() => setSource(option.id)}><option.icon size={15} /> {option.label}</button>)}</div>
-    {source === "text" ? <div className="capture-input"><textarea autoFocus value={text} onChange={(e) => setText(e.target.value)} placeholder="Paste a message, jot down a thought, or type what you need to remember..." /><div><span>{text.length} characters</span><small>Tip: dates, names, and amounts help.</small></div></div> : source === "voice" ? <div className="voice-capture"><button onClick={() => setText(text ? "" : "Call the dentist tomorrow at 10 AM")} className={text ? "recording" : ""}><Mic size={24} /></button><h3>{text ? "Voice note captured" : "Tap to record"}</h3><p>{text || "Your audio will be transcribed before LifeInbox extracts actions."}</p></div> : <label className={`drop-zone ${drag ? "drag" : ""}`} onDragEnter={(e) => { e.preventDefault(); setDrag(true); }} onDragOver={(e) => e.preventDefault()} onDragLeave={() => setDrag(false)} onDrop={(e) => { e.preventDefault(); setDrag(false); const dropped = e.dataTransfer.files[0]; if (dropped) setFile(dropped); }}><input type="file" accept={source === "pdf" ? "application/pdf" : "image/*"} onChange={(e) => setFile(e.target.files?.[0] ?? null)} /><span><UploadCloud size={23} /></span><h3>{file ? file.name : `Drop your ${source === "pdf" ? "PDF" : "image"} here`}</h3><p>{file ? `${Math.max(1, Math.round(file.size / 1024))} KB ready to process` : "or click to choose a file · max 10 MB"}</p></label>}
+  return <div className="modal-scrim"><section className="capture-modal" role="dialog" aria-modal="true" aria-labelledby="capture-title"><div className="modal-head"><div><span><WandSparkles size={18} /></span><div><h2 id="capture-title">Capture anything</h2><p>Drop it here. LifeInbox will do the sorting.</p></div></div><button className="modal-close" onClick={onClose} aria-label="Close capture"><X size={18} /></button></div>
+    <div className="source-tabs">{([{ id: "text", label: "Text", icon: FileText }, { id: "image", label: "Image", icon: ImageIcon }, { id: "pdf", label: "PDF", icon: Paperclip }, { id: "voice", label: "Voice", icon: Mic }] as const).map((option) => <button key={option.id} className={source === option.id ? "active" : ""} onClick={() => { setSource(option.id); setFile(null); setText(""); setError(""); }}><option.icon size={15} /> {option.label}</button>)}</div>
+    {source === "text" ? <div className="capture-input"><textarea autoFocus value={text} onChange={(e) => setText(e.target.value)} placeholder="Paste a message, jot down a thought, or type what you need to remember..." /><div><span>{text.length} characters</span><small>Tip: dates, names, and amounts help.</small></div></div> : source === "voice" ? <div className="voice-capture"><button onClick={() => void toggleRecording()} className={recording ? "recording" : ""}><Mic size={24} /></button><h3>{recording ? "Recording... tap to stop" : file ? "Voice note captured!" : "Tap to record"}</h3><p>{file ? `${Math.max(1, Math.round(file.size / 1024))} KB ready to transcribe` : "Your audio is transcribed securely before actions are extracted."}</p></div> : <label className={`drop-zone ${drag ? "drag" : ""}`} onDragEnter={(event) => { event.preventDefault(); setDrag(true); }} onDragOver={(event) => event.preventDefault()} onDragLeave={() => setDrag(false)} onDrop={(event) => { event.preventDefault(); setDrag(false); const dropped = event.dataTransfer.files[0]; if (dropped) acceptFile(dropped); }}><input type="file" accept={source === "pdf" ? "application/pdf" : "image/*"} onChange={(event) => { const selectedFile = event.target.files?.[0]; if (selectedFile) acceptFile(selectedFile); }} /><span><UploadCloud size={23} /></span><h3>{file ? file.name : `Drop your ${source === "pdf" ? "PDF" : "image"} here`}</h3><p>{file ? `${Math.max(1, Math.round(file.size / 1024))} KB ready to process` : "or click to choose a file · max 10 MB"}</p></label>}
+    {error && <div className="capture-error"><HelpCircle size={14} /> {error}</div>}
     <div className="capture-footer"><p><LockKeyhole size={13} /> Private to your workspace</p><div><button className="button button-ghost" onClick={onClose}>Cancel</button><button className="button" onClick={() => void process()} disabled={processing || (!text.trim() && !file)}>{processing ? <><LoaderCircle className="spin" size={16} /> Understanding...</> : <>Review capture <ArrowRight size={15} /></>}</button></div></div></section></div>;
 }
 
@@ -297,34 +345,40 @@ function ReviewModal({ draft, original, fileName, onClose, onApprove, onReject }
     <div className="review-footer"><button className="reject-button" onClick={onReject}><Trash2 size={15} /> Reject</button><div><span><kbd>⌘</kbd><kbd>↵</kbd> to approve</span><button className="button button-ghost" onClick={onClose}>Keep editing</button><button className="button" onClick={() => onApprove(item)}><Check size={16} /> Approve & save</button></div></div></section></div>;
 }
 
-function ItemDetail({ item, onClose, onDone, onDelete }: { item: LifeItem; onClose: () => void; onDone: (id: string) => void; onDelete: (id: string) => void }) {
+function ItemDetail({ item, onClose, onDone, onDelete, onSnooze }: { item: LifeItem; onClose: () => void; onDone: (id: string) => void; onDelete: (id: string) => void; onSnooze: (id: string) => void }) {
   const meta = typeMeta[item.type]; const Icon = meta.icon;
-  return <div className="drawer-scrim" onClick={onClose}><aside className="item-drawer" onClick={(e) => e.stopPropagation()}><div className="item-drawer-head"><span className={`type-icon ${meta.color}`}><Icon size={18} /></span><button className="modal-close" onClick={onClose}><X size={18} /></button></div><span className="date-label">{meta.label} · {item.confidence}% confidence</span><h2>{item.title}</h2><p>{item.summary}</p><div className="detail-grid"><div><span><Clock3 size={14} /> When</span><b>{item.dueLabel ?? "No date"}</b></div>{item.amount && <div><span><CircleDollarSign size={14} /> Amount</span><b>{item.amount}</b></div>}{item.location && <div><span><Tag size={14} /> Location</span><b>{item.location}</b></div>}<div><span><Layers3 size={14} /> Thread</span><b>{item.threadName ?? "Unsorted"}</b></div></div><div className="detail-source"><Fingerprint size={17} /><div><b>Captured from {item.source}</b><small>{new Date(item.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</small></div></div><div className="drawer-actions"><button className="button" onClick={() => { onDone(item.id); onClose(); }}><Check size={15} /> Mark complete</button><button className="button button-ghost"><Clock3 size={15} /> Snooze</button><button className="danger-icon" onClick={() => { onDelete(item.id); onClose(); }}><Trash2 size={16} /></button></div></aside></div>;
+  return <div className="drawer-scrim" onClick={onClose}><aside className="item-drawer" onClick={(e) => e.stopPropagation()}><div className="item-drawer-head"><span className={`type-icon ${meta.color}`}><Icon size={18} /></span><button className="modal-close" onClick={onClose}><X size={18} /></button></div><span className="date-label">{meta.label} · {item.confidence}% confidence</span><h2>{item.title}</h2><p>{item.summary}</p><div className="detail-grid"><div><span><Clock3 size={14} /> When</span><b>{item.dueLabel ?? "No date"}</b></div>{item.amount && <div><span><CircleDollarSign size={14} /> Amount</span><b>{item.amount}</b></div>}{item.location && <div><span><Tag size={14} /> Location</span><b>{item.location}</b></div>}<div><span><Layers3 size={14} /> Thread</span><b>{item.threadName ?? "Unsorted"}</b></div></div><div className="detail-source"><Fingerprint size={17} /><div><b>Captured from {item.source}</b><small>{new Date(item.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</small></div></div><div className="drawer-actions"><button className="button" onClick={() => { onDone(item.id); onClose(); }}><Check size={15} /> Mark complete</button><button className="button button-ghost" onClick={() => { onSnooze(item.id); onClose(); }}><Clock3 size={15} /> Snooze</button><button className="danger-icon" onClick={() => { onDelete(item.id); onClose(); }}><Trash2 size={16} /></button></div></aside></div>;
 }
 
 export function LifeInboxApp() {
-  const [screen, setScreen] = useState<"landing" | "auth" | "app">("landing"); const [authMode, setAuthMode] = useState<AuthMode>("signup");
+  const [screen, setScreen] = useState<"landing" | "auth" | "recovery" | "app">("landing"); const [authMode, setAuthMode] = useState<AuthMode>("signup"); const [recovery, setRecovery] = useState<{ userId: string; secret: string } | null>(null);
   const [user, setUser] = useState<AuthUser | null>(null); const [demo, setDemo] = useState(false); const [loadingSession, setLoadingSession] = useState(isAppwriteConfigured);
   const [view, setView] = useState<View>("today"); const [items, setItems] = useState<LifeItem[]>(seedItems); const [query, setQuery] = useState("");
-  const [captureOpen, setCaptureOpen] = useState(false); const [review, setReview] = useState<{ draft: LifeItem; original: string; fileName?: string } | null>(null); const [selected, setSelected] = useState<LifeItem | null>(null); const [toast, setToast] = useState("");
+  const [captureOpen, setCaptureOpen] = useState(false); const [newThreadOpen, setNewThreadOpen] = useState(false); const [customThreads, setCustomThreads] = useState<LifeThread[]>([]); const [review, setReview] = useState<{ draft: LifeItem; original: string; fileName?: string } | null>(null); const [selected, setSelected] = useState<LifeItem | null>(null); const [toast, setToast] = useState("");
+  const [dailyBriefing, setDailyBriefing] = useState("Renew your car insurance before 5 PM. Your Goa flight check-in opens tomorrow, and there’s one payment to settle this week.");
   const appRoot = useRef<HTMLDivElement>(null);
 
-  useEffect(() => { void (async () => { const current = await getCurrentUser(); if (current) { setUser(current); setScreen("app"); try { const remote = await listLifeItems(current.id); if (remote.length) setItems(remote); } catch {} } setLoadingSession(false); })(); }, []);
+  useEffect(() => { void (async () => { await Promise.resolve(); const params = new URLSearchParams(window.location.search); const userId = params.get("userId"); const secret = params.get("secret"); if (params.get("recovery") && userId && secret) { setRecovery({ userId, secret }); setScreen("recovery"); setLoadingSession(false); return; } const current = await getCurrentUser(); if (current) { setUser(current); setScreen("app"); try { const [remote, remoteThreads] = await Promise.all([listLifeItems(current.id), listLifeThreads(current.id)]); setItems(remote); setCustomThreads(remoteThreads); } catch {} } setLoadingSession(false); })(); }, []);
   useEffect(() => { if (screen !== "app" || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return; const ctx = gsap.context(() => gsap.fromTo("[data-animate]", { y: 12, opacity: 0 }, { y: 0, opacity: 1, duration: .42, stagger: .045, ease: "power2.out" }), appRoot); return () => ctx.revert(); }, [screen, view]);
   useEffect(() => { const handler = (event: KeyboardEvent) => { if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") { event.preventDefault(); setView("ask"); } else if (event.key.toLowerCase() === "c" && !captureOpen && !(event.target instanceof HTMLInputElement) && !(event.target instanceof HTMLTextAreaElement)) setCaptureOpen(true); else if (event.key === "Escape") { setCaptureOpen(false); setReview(null); setSelected(null); } }; window.addEventListener("keydown", handler); return () => window.removeEventListener("keydown", handler); }, [captureOpen]);
   useEffect(() => { if (!toast) return; const timer = window.setTimeout(() => setToast(""), 2800); return () => window.clearTimeout(timer); }, [toast]);
+  useEffect(() => { if (view !== "today" || !user || demo || !isAppwriteConfigured) return; void askOrExtract("today-brief", {}).then((result) => { if (result?.briefing) setDailyBriefing(String(result.briefing)); }).catch(() => {}); }, [view, user, demo]);
 
-  const threads = useMemo(() => seedThreads.map((thread) => ({ ...thread, itemIds: items.filter((i) => i.threadId === thread.id).map((i) => i.id) })), [items]);
+  const threads = useMemo(() => [...seedThreads.map((thread) => ({ ...thread, itemIds: items.filter((i) => i.threadId === thread.id).map((i) => i.id) })), ...customThreads], [items, customThreads]);
   function enterDemo() { setDemo(true); setUser({ id: "demo", name: "Taha Ahmed", email: "demo@lifeinbox.app" }); setScreen("app"); }
   async function logout() { try { await signOut(); } catch {} setUser(null); setDemo(false); setScreen("landing"); setView("today"); }
-  function toggleDone(id: string) { setItems((all) => all.map((item) => item.id === id ? { ...item, status: item.status === "done" ? "inbox" : "done" } : item)); setToast("Item updated"); }
-  function deleteItem(id: string) { setItems((all) => all.filter((item) => item.id !== id)); setToast("Item removed"); }
+  function toggleDone(id: string) { const current = items.find((item) => item.id === id); const status = current?.status === "done" ? "inbox" : "done"; setItems((all) => all.map((item) => item.id === id ? { ...item, status } : item)); setToast(status === "done" ? "Nice! Item completed" : "Item moved back to the inbox"); if (!demo && isAppwriteConfigured) void updateLifeItem(id, { status }); }
+  function snoozeItem(id: string) { setItems((all) => all.map((item) => item.id === id ? { ...item, status: "snoozed", dueLabel: "Tomorrow" } : item)); setToast("Snoozed until tomorrow"); if (!demo && isAppwriteConfigured) void updateLifeItem(id, { status: "snoozed", dueLabel: "Tomorrow" }); }
+  function deleteItem(id: string) { setItems((all) => all.filter((item) => item.id !== id)); setToast("Item removed"); if (!demo && isAppwriteConfigured) void deleteLifeItem(id); }
+  async function createThread(thread: LifeThread) { setCustomThreads((all) => [...all, thread]); setNewThreadOpen(false); setToast("New Life Thread created"); if (!demo && isAppwriteConfigured && user) await saveLifeThread(thread, user.id).catch(() => setToast("Thread created locally; sync needs attention")); }
+  function resetDemo() { setItems(seedItems); setCustomThreads([]); setToast("Demo workspace reset"); setView("today"); }
   async function approve(item: LifeItem) { setItems((all) => [item, ...all]); setReview(null); setCaptureOpen(false); setToast("Saved to your inbox"); if (isAppwriteConfigured && user && user.id !== "demo") { try { await saveLifeItem(item, user.id); } catch { setToast("Saved locally; Appwrite sync needs attention"); } } }
 
   if (loadingSession) return <div className="boot-screen"><Brand /><LoaderCircle className="spin" size={24} /><p>Opening your LifeInbox…</p></div>;
   if (screen === "landing") return <Landing onAuth={(mode) => { setAuthMode(mode); setScreen("auth"); }} onDemo={enterDemo} />;
   if (screen === "auth") return <AuthScreen initialMode={authMode} onBack={() => setScreen("landing")} onSuccess={(nextUser) => { setUser(nextUser); setDemo(false); setScreen("app"); }} onDemo={enterDemo} />;
+  if (screen === "recovery" && recovery) return <RecoveryScreen {...recovery} onDone={() => { window.history.replaceState({}, "", window.location.pathname); setAuthMode("signin"); setScreen("auth"); setToast("Password reset. You can log in now."); }} />;
   if (!user) return null;
 
-  return <div ref={appRoot} className="app-shell"><Sidebar view={view} setView={setView} user={user} demo={demo} onCapture={() => setCaptureOpen(true)} onLogout={() => void logout()} /><main className="app-main"><Topbar view={view} onCapture={() => setCaptureOpen(true)} query={query} setQuery={setQuery} />{view === "today" && <TodayView items={items} name={user.name} onDone={toggleDone} onCapture={() => setCaptureOpen(true)} onOpen={setSelected} />}{view === "inbox" && <InboxView items={items} query={query} onDone={toggleDone} onOpen={setSelected} onCapture={() => setCaptureOpen(true)} />}{view === "threads" && <ThreadsView threads={threads} items={items} onOpen={setSelected} />}{view === "ask" && <AskView items={items} />}{view === "settings" && <SettingsView demo={demo} onLogout={() => void logout()} />}</main>{captureOpen && <CaptureModal user={user} onClose={() => setCaptureOpen(false)} onReview={(draft, original, fileName) => { setReview({ draft, original, fileName }); setCaptureOpen(false); }} />}{review && <ReviewModal {...review} onClose={() => setReview(null)} onReject={() => { setReview(null); setToast("Capture discarded"); }} onApprove={(item) => void approve(item)} />}{selected && <ItemDetail item={selected} onClose={() => setSelected(null)} onDone={toggleDone} onDelete={deleteItem} />}{toast && <div className="toast"><CheckCircle2 size={16} /> {toast}</div>}</div>;
+  return <div ref={appRoot} className="app-shell"><Sidebar view={view} setView={setView} user={user} demo={demo} onCapture={() => setCaptureOpen(true)} onLogout={() => void logout()} /><main className="app-main"><Topbar view={view} onCapture={() => setCaptureOpen(true)} query={query} setQuery={setQuery} />{view === "today" && <TodayView items={items} name={user.name} briefing={dailyBriefing} onDone={toggleDone} onCapture={() => setCaptureOpen(true)} onOpen={setSelected} onViewAll={() => setView("inbox")} />}{view === "inbox" && <InboxView items={items} query={query} onDone={toggleDone} onOpen={setSelected} onCapture={() => setCaptureOpen(true)} />}{view === "threads" && <ThreadsView threads={threads} items={items} onOpen={setSelected} onNewThread={() => setNewThreadOpen(true)} />}{view === "ask" && <AskView items={items} />}{view === "settings" && <SettingsView demo={demo} user={user} items={items} onLogout={() => void logout()} onToast={setToast} onReset={resetDemo} />}</main>{captureOpen && <CaptureModal user={user} onClose={() => setCaptureOpen(false)} onReview={(draft, original, fileName) => { setReview({ draft, original, fileName }); setCaptureOpen(false); }} />}{newThreadOpen && <NewThreadModal onClose={() => setNewThreadOpen(false)} onCreate={(thread) => void createThread(thread)} />}{review && <ReviewModal {...review} onClose={() => setReview(null)} onReject={() => { setReview(null); setToast("Capture discarded"); }} onApprove={(item) => void approve(item)} />}{selected && <ItemDetail item={selected} onClose={() => setSelected(null)} onDone={toggleDone} onDelete={deleteItem} onSnooze={snoozeItem} />}{toast && <div className="toast"><CheckCircle2 size={16} /> {toast}</div>}</div>;
 }

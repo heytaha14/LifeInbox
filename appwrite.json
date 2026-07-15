@@ -20,7 +20,7 @@
       "$id": "ops",
       "name": "LifeInbox Ops",
       "runtime": "node-22",
-      "execute": [],
+      "execute": ["users"],
       "events": [],
       "schedule": "0 3 * * *",
       "timeout": 60,

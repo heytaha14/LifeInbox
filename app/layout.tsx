@@ -20,9 +20,9 @@ export async function generateMetadata(): Promise<Metadata> {
       title: "LifeInbox - Your life, finally out of your head",
       description: "One calm inbox for plans, paperwork, reminders, receipts, and everything in between.",
       type: "website",
-      images: [{ url: `${base}/og.png`, width: 1200, height: 630, alt: "LifeInbox product preview" }],
+      images: [{ url: `${base}/og-bright.png`, width: 1200, height: 630, alt: "Bright LifeInbox product preview" }],
     },
-    twitter: { card: "summary_large_image", title: "LifeInbox", description: "Capture anything. Know what matters next.", images: [`${base}/og.png`] },
+    twitter: { card: "summary_large_image", title: "LifeInbox", description: "Capture anything. Know what matters next.", images: [`${base}/og-bright.png`] },
   };
 }
 

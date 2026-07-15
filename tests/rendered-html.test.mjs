@@ -41,8 +41,8 @@ test("keeps Appwrite and secrets behind explicit boundaries", async () => {
   assert.doesNotMatch(env, /NEXT_PUBLIC_(OPENAI|APPWRITE_API_KEY)/);
   assert.match(orchestrator, /x-appwrite-user-id/i);
   assert.match(orchestrator, /json_schema/);
-  assert.match(layout, /\/og\.png/);
+  assert.match(layout, /\/og-bright\.png/);
   await assert.rejects(access(new URL("../app/_sites-preview", import.meta.url)));
-  await access(new URL("../public/og.png", import.meta.url));
+  await access(new URL("../public/og-bright.png", import.meta.url));
   await access(new URL("appwrite.json", root));
 });

@@ -1,16 +1,19 @@
-import { Client, Databases, Query, Storage } from "node-appwrite";
+import { Client, Databases, Query, Storage, Users } from "node-appwrite";
 
 const DB = process.env.APPWRITE_DATABASE_ID || "lifeinbox";
 const CAPTURES = process.env.APPWRITE_CAPTURES_COLLECTION_ID || "captures";
 const USAGE = process.env.APPWRITE_USAGE_COLLECTION_ID || "usage";
 const BUCKET = process.env.APPWRITE_BUCKET_ID || "inbox-files";
+const ACTIONS = process.env.APPWRITE_ACTIONS_COLLECTION_ID || "actions";
+const THREADS = process.env.APPWRITE_THREADS_COLLECTION_ID || "threads";
+const BRIEFINGS = process.env.APPWRITE_BRIEFINGS_COLLECTION_ID || "briefings";
 
 function services() {
   const client = new Client()
     .setEndpoint(process.env.APPWRITE_FUNCTION_API_ENDPOINT || process.env.APPWRITE_ENDPOINT || "https://cloud.appwrite.io/v1")
     .setProject(process.env.APPWRITE_FUNCTION_PROJECT_ID || process.env.APPWRITE_PROJECT_ID)
     .setKey(process.env.APPWRITE_API_KEY);
-  return { databases: new Databases(client), storage: new Storage(client) };
+  return { databases: new Databases(client), storage: new Storage(client), users: new Users(client) };
 }
 
 function body(req) {
@@ -57,15 +60,37 @@ async function usageSummary(databases) {
   }), { date, users: 0, captures: 0, inputTokens: 0, outputTokens: 0, ocrRuns: 0, sttRuns: 0, cacheHits: 0, failures: 0 });
 }
 
+async function deleteAccount(databases, storage, users, userId) {
+  const collections = [CAPTURES, ACTIONS, THREADS, BRIEFINGS, USAGE];
+  for (const collectionId of collections) {
+    let cursor;
+    do {
+      const queries = [Query.equal("userId", [userId]), Query.limit(100)];
+      if (cursor) queries.push(Query.cursorAfter(cursor));
+      const page = await databases.listDocuments({ databaseId: DB, collectionId, queries });
+      for (const document of page.documents) {
+        if (collectionId === CAPTURES && document.fileId) await storage.deleteFile({ bucketId: BUCKET, fileId: document.fileId }).catch(() => {});
+        await databases.deleteDocument({ databaseId: DB, collectionId, documentId: document.$id });
+      }
+      cursor = page.documents.length === 100 ? page.documents.at(-1).$id : undefined;
+    } while (cursor);
+  }
+  await users.delete({ userId });
+  return { deleted: true };
+}
+
 async function handler({ req, res, log, error }) {
   if (!process.env.APPWRITE_API_KEY) return res.json({ error: "function_not_configured" }, 503);
+  const request = body(req);
+  const route = String(request.route || req.path || "cleanup").replace(/^\//, "");
+  const userId = req.headers["x-appwrite-user-id"] || req.headers["X-Appwrite-User-Id"];
   const scheduled = Boolean(req.headers["x-appwrite-trigger"] || req.headers["X-Appwrite-Trigger"]);
   const suppliedSecret = req.headers["x-ops-secret"] || req.headers["X-Ops-Secret"];
-  if (!scheduled && (!process.env.OPS_SECRET || suppliedSecret !== process.env.OPS_SECRET)) return res.json({ error: "forbidden" }, 403);
+  const userOwnedRoute = route === "delete-account" && Boolean(userId);
+  if (!scheduled && !userOwnedRoute && (!process.env.OPS_SECRET || suppliedSecret !== process.env.OPS_SECRET)) return res.json({ error: "forbidden" }, 403);
   try {
-    const { databases, storage } = services();
-    const request = body(req);
-    const route = String(request.route || req.path || "cleanup").replace(/^\//, "");
+    const { databases, storage, users } = services();
+    if (route === "delete-account") return res.json(await deleteAccount(databases, storage, users, userId));
     if (route === "cleanup") return res.json(await cleanup(databases, storage, log));
     if (route === "usage") return res.json(await usageSummary(databases));
     if (route === "billing-webhook") {
