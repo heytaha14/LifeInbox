@@ -44,6 +44,7 @@ test("keeps Appwrite and secrets behind explicit boundaries", async () => {
   assert.match(orchestrator, /x-appwrite-key/i);
   assert.doesNotMatch(orchestrator, /process\.env\.APPWRITE_API_KEY/);
   assert.doesNotMatch(ops, /process\.env\.APPWRITE_API_KEY/);
+  assert.match(ops, /trigger === "schedule"/);
   assert.match(orchestrator, /json_schema/);
   assert.match(layout, /\/og-bright\.png/);
   await assert.rejects(access(new URL("../app/_sites-preview", import.meta.url)));

@@ -85,7 +85,8 @@ async function handler({ req, res, log, error }) {
   const request = body(req);
   const route = String(request.route || req.path || "cleanup").replace(/^\//, "");
   const userId = req.headers["x-appwrite-user-id"] || req.headers["X-Appwrite-User-Id"];
-  const scheduled = Boolean(req.headers["x-appwrite-trigger"] || req.headers["X-Appwrite-Trigger"]);
+  const trigger = String(req.headers["x-appwrite-trigger"] || req.headers["X-Appwrite-Trigger"] || "").toLowerCase();
+  const scheduled = trigger === "schedule";
   const suppliedSecret = req.headers["x-ops-secret"] || req.headers["X-Ops-Secret"];
   const userOwnedRoute = route === "delete-account" && Boolean(userId);
   if (!scheduled && !userOwnedRoute && (!process.env.OPS_SECRET || suppliedSecret !== process.env.OPS_SECRET)) return res.json({ error: "forbidden" }, 403);
