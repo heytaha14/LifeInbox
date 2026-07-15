@@ -22,24 +22,28 @@ test("server-renders the finished LifeInbox product", async () => {
   const html = await response.text();
   assert.match(html, /<title>LifeInbox - Turn life admin into a clear next step<\/title>/i);
   assert.match(html, /LifeInbox/);
-  assert.match(html, /Your life, finally/);
-  assert.match(html, /Start capturing free/);
-  assert.match(html, /Private by design/);
+  assert.match(html, /Opening your LifeInbox|Your life, finally/);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape|react-loading-skeleton/i);
+  const appSource = await readFile(new URL("../app/lifeinbox-app.tsx", import.meta.url), "utf8");
+  assert.match(appSource, /Start capturing free/);
+  assert.match(appSource, /Private by design/);
 });
 
 test("keeps Appwrite and secrets behind explicit boundaries", async () => {
-  const [client, env, orchestrator, layout] = await Promise.all([
+  const [client, setup, orchestrator, ops, layout] = await Promise.all([
     readFile(new URL("../lib/appwrite.ts", import.meta.url), "utf8"),
-    readFile(new URL("../.env.example", import.meta.url), "utf8"),
+    readFile(new URL("../scripts/setup-appwrite.mjs", import.meta.url), "utf8"),
     readFile(new URL("../functions/ai-orchestrator/src/main.js", import.meta.url), "utf8"),
+    readFile(new URL("../functions/ops/src/main.js", import.meta.url), "utf8"),
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
   ]);
   assert.match(client, /NEXT_PUBLIC_APPWRITE_PROJECT_ID/);
   assert.doesNotMatch(client, /OPENAI_API_KEY|APPWRITE_API_KEY/);
-  assert.match(env, /^APPWRITE_API_KEY=/m);
-  assert.doesNotMatch(env, /NEXT_PUBLIC_(OPENAI|APPWRITE_API_KEY)/);
+  assert.match(setup, /APPWRITE_API_KEY/);
   assert.match(orchestrator, /x-appwrite-user-id/i);
+  assert.match(orchestrator, /x-appwrite-key/i);
+  assert.doesNotMatch(orchestrator, /process\.env\.APPWRITE_API_KEY/);
+  assert.doesNotMatch(ops, /process\.env\.APPWRITE_API_KEY/);
   assert.match(orchestrator, /json_schema/);
   assert.match(layout, /\/og-bright\.png/);
   await assert.rejects(access(new URL("../app/_sites-preview", import.meta.url)));
@@ -58,7 +62,7 @@ test("ships a complete installable PWA", async () => {
   assert.equal(parsed.display, "standalone");
   assert.ok(parsed.icons.some((icon) => icon.sizes === "192x192"));
   assert.ok(parsed.icons.some((icon) => icon.sizes === "512x512" && icon.purpose === "maskable"));
-  assert.match(serviceWorker, /lifeinbox-shell-v3/);
+  assert.match(serviceWorker, /lifeinbox-shell-v4/);
   assert.match(serviceWorker, /request\.mode === "navigate"/);
   assert.match(layout, /manifest\.webmanifest/);
   assert.match(client, /beforeinstallprompt/);

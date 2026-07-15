@@ -14,7 +14,7 @@ export function PwaClient() {
   const [isStandalone, setIsStandalone] = useState(() => typeof window !== "undefined" && (window.matchMedia("(display-mode: standalone)").matches || Boolean((navigator as Navigator & { standalone?: boolean }).standalone)));
   const [showIosHelp, setShowIosHelp] = useState(false);
   const [dismissed, setDismissed] = useState(false);
-  const [online, setOnline] = useState(() => typeof navigator === "undefined" || navigator.onLine);
+  const [online, setOnline] = useState(() => typeof navigator === "undefined" || navigator.onLine !== false);
 
   useEffect(() => {
     const onBeforeInstall = (event: Event) => {
