@@ -1,0 +1,34 @@
+{
+  "projectId": "",
+  "projectName": "LifeInbox",
+  "functions": [
+    {
+      "$id": "ai-orchestrator",
+      "name": "LifeInbox AI Orchestrator",
+      "runtime": "node-22",
+      "execute": ["users"],
+      "events": [],
+      "schedule": "",
+      "timeout": 60,
+      "enabled": true,
+      "logging": true,
+      "entrypoint": "src/main.js",
+      "commands": "npm install",
+      "path": "functions/ai-orchestrator"
+    },
+    {
+      "$id": "ops",
+      "name": "LifeInbox Ops",
+      "runtime": "node-22",
+      "execute": [],
+      "events": [],
+      "schedule": "0 3 * * *",
+      "timeout": 60,
+      "enabled": true,
+      "logging": true,
+      "entrypoint": "src/main.js",
+      "commands": "npm install",
+      "path": "functions/ops"
+    }
+  ]
+}
