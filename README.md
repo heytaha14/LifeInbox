@@ -10,15 +10,15 @@
 **Live project:** [lifeinbox-calm.explorertaha.chatgpt.site](https://lifeinbox-calm.explorertaha.chatgpt.site/)
 **OpenAI Build Week track:** Apps for Your Life
 
-LifeInbox is a private, mobile-first life-admin assistant. Users capture whatever is occupying their head, review the structured item GPT-5.6 extracts, and work from a calm Today view, searchable inbox, connected Life Threads, and an Ask experience grounded only in their own saved items.
+LifeInbox is a private, mobile-first life-admin assistant with a clean iOS-inspired workspace. Users drop in whatever is occupying their head, let GPT-5.6 split it into small source-grounded items, review the batch, and work from a focused Today view, searchable inbox, connected Life Threads, and an Ask experience grounded only in their own saved items.
 
 ## Why this exists
 
 Life admin arrives through too many channels: a screenshot of a flight, a voice reminder, a receipt, a PDF renewal notice, or a half-finished thought. Traditional task apps ask the user to organize everything before it becomes useful. LifeInbox reverses that workflow:
 
 1. Capture first.
-2. Let GPT-5.6 find the useful structure.
-3. Review before saving.
+2. Let GPT-5.6 find every distinct next step and its supporting evidence.
+3. Review the whole batch before saving.
 4. Act from one connected, searchable workspace.
 
 ## Judge quick test
@@ -28,12 +28,13 @@ The fastest path requires no credentials and no local setup:
 1. Open the [live project](https://lifeinbox-calm.explorertaha.chatgpt.site/).
 2. Choose **Explore the demo** to inspect the complete responsive UI with sample data.
 3. For the real persistence flow, create a temporary account.
-4. Capture: `Tomorrow at 3 PM, call Dr Mehta to confirm my dental appointment. This is urgent and belongs with my Health plan.`
-5. Review the extracted type, priority, date, summary, confidence, and suggested Life Thread.
-6. Approve it, refresh the page, and confirm that the item persists.
-7. Open **Ask LifeInbox** and ask `What should I do first?` to see a grounded answer with a clickable citation.
-8. Open **Life Threads**, delete the Health thread, and confirm that its item remains safely in the inbox.
-9. Delete the temporary workspace from **Settings → Privacy**.
+4. Capture: `Renew my insurance Friday at 5 PM, email the receipt to Maya, and book a dentist appointment next Tuesday.`
+5. Confirm that GPT-5.6 creates three atomic items. Move through the batch tabs and review each item's source excerpt, type, priority, date, confidence, missing fields, and suggested Life Thread.
+6. Approve the batch, refresh the page, and confirm that all three items persist.
+7. Complete one item, choose the **Completed** inbox filter, and confirm that it remains easy to find or restore.
+8. Open **Ask LifeInbox**, ask `What should I do first?`, then click its citation to open the exact supporting item.
+9. Open **Settings → Privacy**, export the designed PDF report, and inspect its cover, summary metrics, grouped items, and page numbers.
+10. Delete the temporary workspace from **Settings → Privacy**.
 
 Demo mode is intentionally isolated from authenticated accounts. New real accounts always start with an empty workspace.
 
@@ -42,16 +43,18 @@ Demo mode is intentionally isolated from authenticated accounts. New real accoun
 - Appwrite email/password sign-up, login, session restore, recovery, and logout
 - Real empty workspaces with demo data isolated to explicit demo mode
 - Text, image, PDF, and browser-recorded voice capture
-- GPT-5.6 Luna structured extraction with schema validation and safe retry behavior
-- Editable review flow with confidence and missing-information handling
+- GPT-5.6 Luna Structured Outputs that split one capture into as many as 20 atomic items
+- Source-evidence, date/time, enum, and duplicate-intent validation with safe refusal/incomplete-output handling
+- Batch review with per-item tabs, confidence, missing-information guidance, editing, removal, and approve-all
 - Permissioned Appwrite rows and files owned by the signed-in user
 - Today briefing generated from current high-priority and dated items
-- Searchable, filterable inbox with complete, snooze, detail, and delete actions
+- Searchable, filterable inbox with active and completed views plus complete, restore, snooze, detail, and delete actions
 - Life Thread creation, AI suggestions, persistent linking, and non-destructive deletion
 - Ask LifeInbox answers grounded in user data with clickable item citations
-- Preference storage, retention controls, JSON export, and full workspace deletion
+- Preference storage, retention controls, a branded multi-page PDF export, and full workspace deletion
 - Installable PWA with offline app shell, custom icons, safe areas, and install guidance
-- Phone bottom navigation, compact tablet rail, full desktop shell, and full-screen mobile capture/review
+- Minimal white, graphite, and lime landing page with iOS-inspired product graphics and focused conversion paths
+- Phone bottom navigation, compact tablet rail, floating desktop shell, and full-screen mobile capture/review
 - Appwrite setup automation for five collections, one file bucket, indexes, and permissions
 - Server-side AI orchestration, usage accounting, file cleanup, and operational controls
 
@@ -77,12 +80,12 @@ The browser receives only public Appwrite identifiers. `OPENAI_API_KEY`, `OPS_SE
 
 LifeInbox uses the OpenAI Responses API with `gpt-5.6-luna` inside the Appwrite `ai-orchestrator` function.
 
-- **Capture extraction:** converts unstructured text, images, PDFs, and voice transcripts into a strict schema for tasks, events, expenses, and notes.
+- **Capture extraction:** converts unstructured text, images, PDFs, and voice transcripts into a strict `items[]` schema containing up to 20 independent tasks, events, expenses, and notes.
 - **Grounded questions:** retrieves relevant user-owned actions first, then asks GPT-5.6 to answer only from that supplied context and cite supporting item IDs.
 - **Daily briefings:** summarizes at most three relevant next steps and caches them by date and item-version hash.
 - **Life Thread grouping:** proposes groups only when deterministic relationships are unavailable.
 
-AI output is treated as untrusted input. The function validates structured output, retries empty or malformed responses, strips internal-only extraction fields, records usage, and never claims that an external action was completed.
+AI output is treated as untrusted input. The function verifies source excerpts, normalizes dates and times conservatively, rejects duplicate or unsupported items, handles refusals and incomplete Responses API results, retries safe transient failures, records usage, and never claims that an external action was completed. Every item remains editable and nothing is persisted until the user approves the batch.
 
 ## How Codex was used
 
@@ -90,17 +93,17 @@ Codex was the primary engineering collaborator across the submission-period buil
 
 - Converting the initial product prompt into the working React/Appwrite architecture
 - Implementing authentication, database schemas, indexes, file storage, and two server functions
-- Building and polishing responsive phone, tablet, desktop, and PWA experiences
+- Building and polishing the iOS-inspired white/lime landing page, responsive phone, tablet, desktop, and PWA experiences
 - Tracing live Appwrite execution failures to empty structured output and schema-unsafe persistence
-- Migrating the production model to GPT-5.6 Luna and hardening parsing/retry behavior
+- Migrating the production model to GPT-5.6 Luna and hardening atomic decomposition, evidence validation, parsing, and retry behavior
 - Separating demo state from real accounts and replacing fake dashboard values with real calculations
-- Implementing persistent Life Threads, grounded citations, deletion, and account cleanup
+- Implementing batch review, persistent Life Threads, grounded citations, designed PDF export, deletion, and account cleanup
 - Running lint, builds, automated tests, production deployment, and full browser smoke tests
 
 ### Decisions kept human-directed
 
 - The product problem: life admin should be captured before it is organized.
-- The calm-but-playful product direction and review-before-save trust model.
+- The minimal iOS-inspired white/lime product direction and review-before-save trust model.
 - Appwrite as the BaaS and the choice to keep all AI secrets in server functions.
 - Non-destructive Life Thread deletion: deleting a group must not delete its underlying items.
 - GPT-5.6 Luna as the production model for a practical intelligence/cost balance.
@@ -163,18 +166,19 @@ Never commit `.env.local` or expose the OpenAI/Appwrite secret keys through a `N
 | Collection | `usage` | Capture, token, OCR, STT, cache, and failure counters |
 | Bucket | `inbox-files` | Private original uploads, limited to 10 MB |
 | Function | `ai-orchestrator` | Extract, Ask, brief, and grouping routes |
-| Function | `ops` | Retention, deletion, export, and operational seams |
+| Function | `ops` | Retention, deletion, cleanup, usage, and operational seams |
 
 ## Quality and verification
 
 ```bash
 npm run lint
+npm run typecheck
 npm test
 node --check functions/ai-orchestrator/src/main.js
 node --check functions/ops/src/main.js
 ```
 
-The production flow was verified with a temporary account through sign-up, empty-state rendering, GPT-5.6 extraction, approval, reload persistence, generated briefing, grounded Ask citation, Life Thread deletion, responsive breakpoints, and full workspace deletion. The temporary account was removed after the test.
+The production flow should be release-checked with a temporary account through sign-up, empty-state rendering, compound GPT-5.6 extraction, batch approval, reload persistence, completion filtering, generated briefing, grounded Ask citation, PDF export, responsive breakpoints, PWA installation, and full workspace deletion. Remove the temporary account after the test.
 
 ## Documentation
 

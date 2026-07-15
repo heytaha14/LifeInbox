@@ -27,7 +27,9 @@
 
 - Per-user daily quotas are enforced before an AI call.
 - Inputs and result sets are bounded.
-- Structured output prevents arbitrary model-shaped writes.
+- Strict Structured Outputs prevent arbitrary model-shaped writes; extraction is capped at 20 items per capture.
+- Source excerpts are checked against textual evidence, dates and times are normalized conservatively, and duplicate intents are removed before review.
+- Refusals, incomplete responses, empty batches, malformed fields, and unsupported evidence fail closed without mutating the original capture.
 - Repeated results should use content hashes and caches.
 - Quota exhaustion returns a soft lock while leaving existing data usable.
 

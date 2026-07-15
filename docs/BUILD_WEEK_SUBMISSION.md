@@ -1,11 +1,11 @@
 # OpenAI Build Week submission pack
 
-This file is a working submission checklist and demo script. Replace the two marked placeholders before the final Devpost submission.
+This is the judge-ready project copy, verification path, and sub-three-minute demo script. Four submission fields remain intentionally incomplete and must be supplied by the submitter before final submission.
 
 ## Submission identity
 
 - **Project:** LifeInbox
-- **Tagline:** Turn life admin into clear, connected next steps with GPT-5.6.
+- **Tagline:** Drop in the mess. Get clear, connected next steps.
 - **Category:** Apps for Your Life
 - **Live project:** https://lifeinbox-calm.explorertaha.chatgpt.site/
 - **Code:** https://github.com/heytaha14/LifeInbox
@@ -16,102 +16,123 @@ This file is a working submission checklist and demo script. Replace the two mar
 
 ### Inspiration
 
-Life admin arrives everywhere: screenshots, receipts, voice notes, PDFs, messages, and half-finished thoughts. Existing productivity tools often ask people to organize that information before it becomes useful. LifeInbox starts with the opposite premise: capture first, understand instantly, and review before anything enters your trusted workspace.
+Life admin rarely arrives as one tidy task. It arrives as a screenshot of a flight, a receipt, a voice note with three reminders, a PDF renewal notice, or a thought typed while walking. Most productivity tools ask people to organize that information before it becomes useful. LifeInbox starts with the opposite premise: capture first, understand instantly, and review before anything enters a trusted workspace.
 
 ### What it does
 
-LifeInbox turns unstructured personal information into editable tasks, events, expenses, and notes. GPT-5.6 extracts dates, priority, people, amounts, locations, confidence, and a suggested Life Thread. Approved items power a daily briefing, searchable inbox, connected Life Threads, and a grounded Ask interface with citations back to the user's own records.
+LifeInbox turns text, images, PDFs, receipts, and recorded voice into editable tasks, events, expenses, and notes. One messy capture can become as many as 20 small, independent items. GPT-5.6 Luna identifies dates, times, priority, people, amounts, locations, missing information, confidence, a supporting source excerpt, and a suggested Life Thread for each item.
 
-It supports text, images, PDFs, and recorded voice; installs as a PWA; adapts to phone, tablet, and desktop; stores data with per-user Appwrite permissions; and lets users export or completely delete their workspace.
+The user reviews the entire batch, edits or removes individual items, and approves only what is correct. Approved items power a focused Today briefing, searchable active and completed inbox views, connected Life Threads, and Ask LifeInbox answers with clickable citations back to exact saved items.
+
+The product includes a clean iOS-inspired white, graphite, and lime interface; a responsive phone, tablet, and desktop workspace; an installable PWA; per-user Appwrite permissions; retention and deletion controls; and a designed multi-page PDF report with cover, metrics, grouped items, and page numbers.
 
 ### How we built it
 
-The client uses Next.js, React, TypeScript, GSAP, and an installable PWA shell. Appwrite provides authentication, database collections, file storage, permissions, and two Node.js server functions. The AI orchestrator calls the OpenAI Responses API with GPT-5.6 Luna for structured extraction, grounded questions, cached daily briefings, and relationship grouping. A separate Ops function handles retention and deletion workflows.
+The client uses Next.js, React, TypeScript, GSAP, and an installable PWA shell. Appwrite provides email/password authentication, database collections, private file storage, document/file permissions, and two Node.js server functions. The AI orchestrator calls the OpenAI Responses API with GPT-5.6 Luna for strict structured extraction, grounded questions, cached daily briefings, and relationship grouping. A separate Ops function handles retention, workspace deletion, usage seams, and scheduled cleanup.
 
-Codex was the primary implementation collaborator. It translated the product direction into the architecture, built the responsive product, provisioned Appwrite resources, implemented and hardened the AI functions, diagnosed production failures from execution logs, added tests, deployed the stack, and ran end-to-end browser verification. Human-directed decisions included the capture-first workflow, review-before-save trust model, visual direction, security boundaries, and non-destructive thread deletion.
+Capture extraction uses strict Structured Outputs with a canonical `items[]` response. The orchestrator decomposes compound captures, validates supporting evidence, removes duplicate intent, normalizes dates and times conservatively, and handles refusal, incomplete, empty, or malformed model output safely. The client retains compatibility with the legacy `item` alias while treating `items[]` as the complete result.
+
+Codex was the primary engineering collaborator. It translated the product direction into the architecture, implemented the responsive product and Appwrite data flows, hardened GPT-5.6 extraction, diagnosed production failures, added batch review and designed PDF export, created tests and documentation, deployed the stack, and verified the production experience. Human-directed decisions included the capture-first workflow, review-before-save trust model, visual direction, security boundaries, and non-destructive Life Thread deletion.
 
 ### Challenges
 
-The most important production bug was subtle: the model could consume its output budget without returning valid structured text, causing extraction to fail at `JSON.parse`. The fix added explicit reasoning settings, larger output budgets, a safe retry, structured-output validation, and clear failure states. A second issue came from Appwrite returning document identity as `$id`; normalizing that boundary fixed persistence actions, thread counts, and citation chips after reload.
+The hardest AI challenge was not producing a plausible title; it was preserving every explicit intent without merging unrelated actions or inventing details. The solution was an atomic array schema, deliberate reasoning, precise decomposition rules, exact source excerpts, evidence validation, duplicate checks, explicit missing fields, and editable batch review.
+
+We also hardened the Responses API boundary for cases where a model refuses, returns an incomplete response, exhausts its output budget, or produces an empty/malformed payload. Those states now fail safely while preserving the original capture. At the persistence boundary, normalizing Appwrite document identity from `$id` fixed item actions, thread counts, and citation chips after reload.
 
 ### Accomplishments
 
-- A complete product experience rather than a single AI demo
-- Real authentication and per-user persistence with demo isolation
-- Multimodal capture with editable, confidence-aware review
-- Grounded answers with item-level citations
-- Private-by-design server-side AI keys and Appwrite permissions
-- Responsive PWA behavior across mobile, tablet, and desktop
-- Verified account and data deletion flows
+- A complete working product, not a single-prompt AI demo
+- One capture decomposed into up to 20 source-grounded atomic items
+- Strict Structured Outputs plus evidence, date/time, and duplicate validation
+- Editable batch review with confidence and missing-information cues
+- Grounded Ask answers with clickable item-level citations
+- Active and completed inbox filtering with reversible completion
+- Designed branded PDF export instead of a raw JSON dump
+- Real Appwrite authentication, per-user persistence, and isolated demo data
+- Minimal iOS-inspired responsive UI and installable PWA behavior
+- Private-by-design server-only AI keys, retention, export, and deletion controls
 
 ### What we learned
 
-AI features become trustworthy through the surrounding engineering: strict schemas, deterministic retrieval, review states, clear security boundaries, graceful failure handling, and end-to-end production verification. GPT-5.6 provides the intelligence, but the product experience depends on making uncertainty visible and keeping the user in control.
+AI accuracy is a product system, not a model claim. A capable model still needs representative prompts, bounded context, strict schemas, evidence checks, deterministic normalization, visible uncertainty, and an approval boundary. GPT-5.6 provides the intelligence; the surrounding engineering makes it trustworthy and useful.
 
 ### What's next
 
-Next steps include opt-in calendar/email connectors, richer recurring reminders, shared household Threads, notification delivery, encrypted exports, and additional accessibility and internationalization work.
+Next steps include opt-in calendar and email connectors, richer recurring reminders, shared household Threads, notification delivery, encrypted or password-protected PDF exports, broader accessibility testing, and internationalization.
 
-## Demo video script — target 2:35
+## Judge quick test
 
-The final video must be public on YouTube, under three minutes, and include voiceover explaining the project, Codex, and GPT-5.6.
+1. Open the live project and choose **Explore the demo** to inspect the responsive workspace without credentials.
+2. Create a temporary account to verify that a real workspace begins empty.
+3. Capture: `Renew my insurance Friday at 5 PM, email the receipt to Maya, and book a dentist appointment next Tuesday.`
+4. Confirm three editable review tabs, inspect confidence/source evidence, then approve the batch.
+5. Refresh and confirm that the items persist. Complete one and find it with the **Completed** filter.
+6. Ask `What should I do first?` and click the returned citation to open the supporting item.
+7. Open **Settings → Privacy**, generate the PDF export, and inspect its designed cover, metrics, grouped content, and page numbers.
+8. Delete the temporary workspace after testing.
 
-### 0:00–0:18 — problem
+## Demo video script — target 2:40
 
-> Life admin arrives as screenshots, receipts, voice notes, PDFs, and thoughts we are afraid to forget. LifeInbox gives all of it one place to land, without asking you to organize it first.
+The final video must be public on YouTube, under three minutes, and include voiceover explaining the project, GPT-5.6, and Codex. Record at a brisk but readable pace and avoid waiting on camera for network calls.
 
-Show the landing page and supported capture types.
+### 0:00–0:18 — problem and product
 
-### 0:18–0:43 — real empty account
+> Life admin arrives as screenshots, receipts, PDFs, voice notes, and thoughts with several actions tangled together. LifeInbox gives all of it one private place to land and turns the mess into clear next steps.
 
-> A new account starts completely empty and private. Demo data is isolated to demo mode, while every real row and file is permissioned to the signed-in Appwrite user.
+Show the white/lime landing page, capture proof graphic, and supported input types.
 
-Create or open a temporary account and show the empty Today screen.
+### 0:18–0:35 — real empty account
 
-### 0:43–1:15 — GPT-5.6 capture
+> A new account starts empty. Demo data stays in explicit demo mode, while every real row and file is permissioned to the signed-in Appwrite user.
 
-> I can type a messy instruction, upload an image or PDF, or record a voice note. The server-side OpenAI function uses GPT-5.6 Luna to extract a strict, editable item with type, date, priority, confidence, and a suggested Life Thread.
+Open a prepared temporary account and show the empty Today screen.
 
-Capture the Dr Mehta sample, show the review screen, then approve.
+### 0:35–1:12 — compound capture and batch review
 
-### 1:15–1:40 — persistence and connected context
+> I will drop in one messy note: renew my insurance Friday at five, email the receipt to Maya, and book a dentist appointment next Tuesday. The server-side OpenAI function uses GPT-5.6 Luna and strict Structured Outputs to find every distinct intent, verify it against source evidence, and return three atomic items.
 
-> After approval, the item persists in Appwrite, updates the daily briefing, and connects to a Health Life Thread. Refreshing proves this is a working application, not a static prototype.
+Paste the sample. Show the three review tabs, confidence, source context, editable fields, and approve-all action. Do not spend time editing unless a field needs correction.
 
-Refresh, show the generated briefing, inbox item, and Health thread.
+### 1:12–1:37 — persistence and organization
 
-### 1:40–2:02 — grounded Ask
+> After approval, all three items persist in Appwrite, feed the Today briefing, and organize into Life Threads. The inbox separates active and completed work, so finishing something never makes it impossible to find.
 
-> Ask LifeInbox retrieves only relevant user-owned items before calling GPT-5.6. The answer is grounded in that context and links back to a clickable citation instead of inventing facts.
+Refresh, show the items, complete one, and choose the **Completed** filter.
 
-Ask `What should I do first?` and click the citation.
+### 1:37–1:58 — grounded Ask
 
-### 2:02–2:22 — control and responsiveness
+> Ask LifeInbox retrieves relevant user-owned items before calling GPT-5.6. Its answer is grounded in that context and its citation opens the exact saved item behind the recommendation.
 
-> Users can complete, snooze, export, or delete items. Deleting a Life Thread keeps its underlying items, and deleting a workspace removes the test account and its data. The interface is an installable PWA customized for phone, tablet, and desktop.
+Ask `What should I do first?`, then click a citation chip.
 
-Show thread deletion, settings/privacy, and a quick responsive/PWA view.
+### 1:58–2:20 — designed PDF and PWA
 
-### 2:22–2:35 — Codex
+> This is also a practical personal workspace. Instead of a raw JSON dump, LifeInbox exports a designed PDF with a cover, summary metrics, grouped items, statuses, confidence, and page numbers. It is installable as a PWA and adapts its navigation and capture flow for phone, tablet, and desktop.
 
-> Codex was my primary engineering collaborator: it implemented the responsive product and backend, diagnosed live Appwrite and structured-output failures, hardened security and persistence, added tests, deployed the stack, and verified the complete production flow. LifeInbox is the result: capture first, understand instantly, and stay in control.
+Generate and briefly show the PDF, then show one mobile responsive view or the installed-app prompt.
 
-End on the Today screen and LifeInbox logo.
+### 2:20–2:40 — trust and Codex
+
+> Nothing is saved before review, AI keys stay server-side, and users control retention and full workspace deletion. Codex was my primary engineering collaborator: it implemented and redesigned the product, hardened the AI and Appwrite flows, added tests and documentation, deployed the stack, and helped verify the complete experience. LifeInbox: drop it in, understand it, and move on.
+
+End on the Today screen or landing hero with the LifeInbox mark.
 
 ## Final Devpost checklist
 
 - [x] Working project built with Codex and GPT-5.6
 - [x] Apps for Your Life category selected in this pack
 - [x] English project description prepared
-- [x] Public code repository published with MIT license and complete README
-- [x] Devpost project identity, write-up, links, technologies, and thumbnail completed
-- [x] Free live testing URL available
-- [x] Setup, sample-data, security, and judge test paths documented
-- [x] Codex collaboration and key decisions documented
-- [ ] **PUBLIC_YOUTUBE_VIDEO_URL** — record/upload the script above
-- [ ] **CODEX_FEEDBACK_SESSION_ID** — run `/feedback` in the core Codex project thread and copy the returned ID
-- [ ] Confirm submitter type (Individual, Team of Individuals, or Organization)
-- [ ] Confirm country of residence
-- [ ] Submit, then verify the Devpost project is not left as a draft
+- [x] Public code repository prepared with MIT license and complete README
+- [x] Free live testing URL documented
+- [x] Setup, architecture, security, API, and judge test paths documented
+- [x] Codex collaboration and key human decisions documented
+- [ ] **SUBMITTER_TYPE** — Individual, Team of Individuals, or Organization
+- [ ] **COUNTRY_OF_RESIDENCE**
+- [ ] **PUBLIC_YOUTUBE_DEMO_URL** — public, voiceover, under three minutes
+- [ ] **CODEX_FEEDBACK_SESSION_ID** — run `/feedback` in the main LifeInbox Codex task and copy the returned ID
+- [ ] Perform the final OpenAI Build Week submission and verify it is not left as a draft
 
-The official submission deadline is July 21, 2026 at 5:00 PM Pacific Time (July 22, 2026 at 00:00 UTC).
+Do not mark the four required fields complete or perform the final submission until the submitter provides them.
+
+The currently documented submission deadline is July 21, 2026 at 5:00 PM Pacific Time (July 22, 2026 at 00:00 UTC). Verify the live Devpost rules before relying on this date.

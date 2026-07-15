@@ -1,6 +1,6 @@
 "use client";
 
-import { Account, Client, Databases, Functions, ID, Permission, Query, Role, Storage } from "appwrite";
+import { Account, Client, Databases, ExecutionMethod, Functions, ID, Permission, Query, Role, Storage } from "appwrite";
 import type { LifeItem, LifeThread } from "./lifeinbox";
 
 export const appwriteConfig = {
@@ -25,6 +25,10 @@ export const storage = new Storage(client);
 export const appwriteFunctions = new Functions(client);
 
 export type AuthUser = { id: string; name: string; email: string };
+
+function isConflict(error: unknown): boolean {
+  return typeof error === "object" && error !== null && "code" in error && Number((error as { code?: unknown }).code) === 409;
+}
 
 export async function getCurrentUser(): Promise<AuthUser | null> {
   if (!isAppwriteConfigured) return null;
@@ -87,13 +91,18 @@ export async function saveLifeItem(item: LifeItem, userId: string) {
     source: item.source,
     createdAt: item.createdAt,
   };
-  return databases.createDocument({
-    databaseId: appwriteConfig.databaseId,
-    collectionId: appwriteConfig.actionsCollectionId,
-    documentId: item.id,
-    data,
-    permissions: [Permission.read(Role.user(userId)), Permission.update(Role.user(userId)), Permission.delete(Role.user(userId))],
-  });
+  try {
+    return await databases.createDocument({
+      databaseId: appwriteConfig.databaseId,
+      collectionId: appwriteConfig.actionsCollectionId,
+      documentId: item.id,
+      data,
+      permissions: [Permission.read(Role.user(userId)), Permission.update(Role.user(userId)), Permission.delete(Role.user(userId))],
+    });
+  } catch (error) {
+    if (!isConflict(error)) throw error;
+    return databases.updateDocument({ databaseId: appwriteConfig.databaseId, collectionId: appwriteConfig.actionsCollectionId, documentId: item.id, data });
+  }
 }
 
 type LifeItemUpdate = Partial<Omit<LifeItem, "threadId" | "threadName">> & { threadId?: string | null; threadName?: string | null };
@@ -144,13 +153,19 @@ export async function updateCaptureRecord(captureId: string, data: { status?: st
 }
 
 export async function saveLifeThread(thread: LifeThread, userId: string) {
-  return databases.createDocument({
-    databaseId: appwriteConfig.databaseId,
-    collectionId: appwriteConfig.threadsCollectionId,
-    documentId: thread.id,
-    data: { userId, name: thread.name, summary: thread.eyebrow, nextStep: thread.nextStep, dateRange: thread.dateRange, color: thread.color, itemIds: thread.itemIds, updatedAt: new Date().toISOString() },
-    permissions: [Permission.read(Role.user(userId)), Permission.update(Role.user(userId)), Permission.delete(Role.user(userId))],
-  });
+  const data = { userId, name: thread.name, summary: thread.eyebrow, nextStep: thread.nextStep, dateRange: thread.dateRange, color: thread.color, itemIds: thread.itemIds, updatedAt: new Date().toISOString() };
+  try {
+    return await databases.createDocument({
+      databaseId: appwriteConfig.databaseId,
+      collectionId: appwriteConfig.threadsCollectionId,
+      documentId: thread.id,
+      data,
+      permissions: [Permission.read(Role.user(userId)), Permission.update(Role.user(userId)), Permission.delete(Role.user(userId))],
+    });
+  } catch (error) {
+    if (!isConflict(error)) throw error;
+    return databases.updateDocument({ databaseId: appwriteConfig.databaseId, collectionId: appwriteConfig.threadsCollectionId, documentId: thread.id, data });
+  }
 }
 
 export async function updateLifeThread(thread: LifeThread) {
@@ -179,12 +194,22 @@ export async function updateProfileName(name: string) {
 }
 
 export async function listLifeItems(userId: string): Promise<LifeItem[]> {
-  const result = await databases.listDocuments({
-    databaseId: appwriteConfig.databaseId,
-    collectionId: appwriteConfig.actionsCollectionId,
-    queries: [Query.equal("userId", [userId]), Query.orderDesc("createdAt"), Query.limit(50)],
-  });
-  return result.documents.map((document) => ({ ...document, id: document.$id })) as unknown as LifeItem[];
+  const documents: Array<Record<string, unknown> & { $id: string }> = [];
+  const pageSize = 100;
+  let offset = 0;
+  let total = Number.POSITIVE_INFINITY;
+  while (documents.length < total) {
+    const result = await databases.listDocuments({
+      databaseId: appwriteConfig.databaseId,
+      collectionId: appwriteConfig.actionsCollectionId,
+      queries: [Query.equal("userId", [userId]), Query.orderDesc("createdAt"), Query.limit(pageSize), Query.offset(offset)],
+    });
+    documents.push(...result.documents);
+    total = result.total;
+    if (result.documents.length < pageSize) break;
+    offset += result.documents.length;
+  }
+  return documents.map((document) => ({ ...document, id: document.$id })) as unknown as LifeItem[];
 }
 
 export async function listLifeThreads(userId: string): Promise<LifeThread[]> {
@@ -210,8 +235,8 @@ export async function askOrExtract(route: "extract" | "ask" | "today-brief" | "r
     functionId: appwriteConfig.aiFunctionId,
     body: JSON.stringify({ route, ...payload }),
     async: false,
-    path: `/${route}`,
-    method: "POST",
+    xpath: `/${route}`,
+    method: ExecutionMethod.POST,
     headers: { "content-type": "application/json" },
   });
   let response: Record<string, unknown> = {};
@@ -231,8 +256,8 @@ export async function runOps(route: "delete-account" | "export", payload: Record
     functionId: appwriteConfig.opsFunctionId,
     body: JSON.stringify({ route, ...payload }),
     async: false,
-    path: `/${route}`,
-    method: "POST",
+    xpath: `/${route}`,
+    method: ExecutionMethod.POST,
     headers: { "content-type": "application/json" },
   });
   if (!execution.responseBody) return null;

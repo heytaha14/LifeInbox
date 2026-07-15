@@ -90,13 +90,13 @@ Test in this order:
 
 1. Create an account and log out/log in.
 2. Request a password recovery email and complete the reset on the production domain.
-3. Capture and approve plain text.
+3. Capture a compound note such as `Renew insurance Friday at 5 PM, email the receipt to Maya, and book a dentist appointment next Tuesday`; confirm that it becomes separate editable review items, then approve the batch.
 4. Upload one image and one PDF.
 5. Record a short voice note and approve its transcription.
-6. Complete, snooze, edit, and delete an item.
-7. Create a Life Thread and ask a question with citations.
+6. Complete, snooze, edit, and delete an item; use the **Completed** inbox filter to find it and restore it if needed.
+7. Create a Life Thread, ask a question with citations, and click a citation to open its supporting item.
 8. Refresh and confirm data persists.
-9. Export data, change preferences, and test account deletion with a temporary user.
+9. Export the designed PDF report, confirm its cover, summary metrics, grouped items, and page numbers, then change preferences and test account deletion with a temporary user.
 10. Review Appwrite function execution logs and OpenAI usage for unexpected errors or spending.
 
 ## 8. Install the PWA

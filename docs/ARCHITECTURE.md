@@ -10,14 +10,16 @@ Appwrite owns identity, durable records, object storage, row/file authorization,
 
 1. The user signs in with an Appwrite email/password session.
 2. A capture is uploaded directly to the permissioned `inbox-files` bucket when it contains a file.
-3. The browser executes `ai-orchestrator/extract` with text plus safe metadata.
+3. The browser executes `ai-orchestrator/extract` with text plus safe metadata, including the user's local date and time zone for explicit relative-date resolution.
 4. The orchestrator checks the authenticated Appwrite user header and the daily quota.
 5. The cheapest viable route is selected: embedded text, OCR only when needed, preview-image understanding only when layout matters, or transcription before audio extraction.
-6. GPT-5 nano returns a strict structured item. Confidence below 80 or missing essential fields forces review.
-7. The user edits and approves the item. Only then is it saved as an action.
-8. Thread grouping uses deterministic dates, vendors, places, people, and hashes before any model call.
-9. Today briefings are generated on demand and reused while the relevant item hash is unchanged.
-10. Ask fetches a bounded permissioned item set, filters deterministically, summarizes last, and returns item IDs as citations.
+6. GPT-5.6 Luna uses strict Structured Outputs to return `items[]`: up to 20 small, independent tasks, events, expenses, or notes from one capture. A legacy `item` alias mirrors `items[0]` only for older clients.
+7. The orchestrator validates source evidence, duplicate intent, enums, dates, and times. Each item carries a `sourceExcerpt`, confidence score, and explicit `missingFields`; incomplete, refused, empty, or unsupported output fails safely.
+8. The user reviews the complete batch, edits each item, removes unwanted items, and approves the set. Only then are the actions saved.
+9. Thread grouping uses deterministic dates, vendors, places, people, and hashes before any model call.
+10. Today briefings are generated on demand and reused while the relevant item hash is unchanged.
+11. Ask fetches a bounded permissioned item set, filters deterministically, summarizes last, and returns item IDs that the UI renders as clickable citations.
+12. Settings generates a branded PDF locally from the user's approved items; no raw JSON export is exposed in the product UI.
 
 ## Free-plan decisions
 
@@ -30,6 +32,13 @@ Appwrite owns identity, durable records, object storage, row/file authorization,
 - One briefing document per user/day
 - Scheduled retention only through `ops`
 - Provider-neutral billing event route with a mock provider today
+
+## Experience layers
+
+- **Public landing page:** a minimal white, graphite, and lime product story with an interactive capture proof, feature bento, privacy section, and clear demo/sign-up paths.
+- **Authenticated workspace:** an iOS-inspired shell with a floating desktop sidebar, compact tablet navigation, phone bottom navigation, touch-sized controls, safe-area handling, and full-screen mobile capture/review.
+- **Installable PWA:** standalone display, custom icons, offline app-shell fallback, and platform-specific installation guidance. Live Appwrite persistence and OpenAI processing still require a connection.
+- **Portable report:** a designed multi-page PDF with a cover, summary metrics, grouped Life Threads, item status and confidence, and page numbers.
 
 ## Confidence policy
 

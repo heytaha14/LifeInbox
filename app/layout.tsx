@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { Geist, Geist_Mono } from "next/font/google";
 import { PwaClient } from "./pwa-client";
 import "./globals.css";
+import "./ios-redesign.css";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
@@ -15,8 +16,8 @@ export async function generateMetadata(): Promise<Metadata> {
 
   return {
     metadataBase: new URL(base),
-    title: { default: "LifeInbox - Turn life admin into a clear next step", template: "%s | LifeInbox" },
-    description: "Capture anything. LifeInbox turns it into organized actions, calm daily briefings, and searchable life threads.",
+    title: { default: "LifeInbox - Drop it in. Know what matters next.", template: "%s | LifeInbox" },
+    description: "Drop text, images, PDFs, or voice. LifeInbox separates every action, verifies the details, and organizes your next steps with AI.",
     applicationName: "LifeInbox",
     manifest: "/manifest.webmanifest",
     appleWebApp: { capable: true, statusBarStyle: "default", title: "LifeInbox" },
@@ -25,12 +26,12 @@ export async function generateMetadata(): Promise<Metadata> {
       apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
     },
     openGraph: {
-      title: "LifeInbox - Your life, finally out of your head",
-      description: "One calm inbox for plans, paperwork, reminders, receipts, and everything in between.",
+      title: "LifeInbox - Drop it in. LifeInbox handles the rest.",
+      description: "One capture becomes accurate, atomic actions organized into calm Life Threads.",
       type: "website",
-      images: [{ url: `${base}/og-bright.png`, width: 1200, height: 630, alt: "Bright LifeInbox product preview" }],
+      images: [{ url: `${base}/og.png`, width: 1200, height: 630, alt: "LifeInbox turns a compound capture into organized actions" }],
     },
-    twitter: { card: "summary_large_image", title: "LifeInbox", description: "Capture anything. Know what matters next.", images: [`${base}/og-bright.png`] },
+    twitter: { card: "summary_large_image", title: "LifeInbox", description: "Drop it in. LifeInbox handles the rest.", images: [`${base}/og.png`] },
   };
 }
 
@@ -40,8 +41,8 @@ export const viewport: Viewport = {
   maximumScale: 5,
   viewportFit: "cover",
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#fffaf0" },
-    { media: "(prefers-color-scheme: dark)", color: "#20223f" },
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#f5f5f7" },
   ],
 };
 

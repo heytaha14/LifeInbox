@@ -20,6 +20,8 @@ export type LifeItem = {
   status: ItemStatus;
   source: "text" | "image" | "pdf" | "voice";
   createdAt: string;
+  missingFields?: string[];
+  sourceExcerpt?: string;
 };
 
 export type LifeThread = {
@@ -72,17 +74,38 @@ export function makeDraft(input: string, source: LifeItem["source"]): LifeItem {
   const lower = text.toLowerCase();
   const isExpense = /₹|rs\.?|paid|receipt|split|amount/.test(lower);
   const isEvent = /flight|meeting|appointment|event|at \d/.test(lower);
+  const statedAmount = text.match(/(?:₹|rs\.?\s*)([\d,.]+)/i);
   return {
     id: `li-${Date.now()}`,
     type: isExpense ? "expense" : isEvent ? "event" : "task",
     title: text.length > 62 ? `${text.slice(0, 59)}...` : text.replace(/[.!]$/, ""),
     summary: "LifeInbox extracted this action from your capture. Review the details before saving.",
     dueLabel: /tomorrow/.test(lower) ? "Tomorrow" : /today/.test(lower) ? "Today" : "No date",
-    amount: isExpense ? "₹1,240" : undefined,
+    amount: statedAmount ? `₹${statedAmount[1]}` : undefined,
     priority: /urgent|today|asap/.test(lower) ? "high" : "medium",
-    confidence: text.length < 12 ? 68 : 91,
+    confidence: text.length < 12 ? 42 : 62,
     status: "inbox",
     source,
     createdAt: new Date().toISOString(),
+    missingFields: ["AI verification", ...(isExpense && !statedAmount ? ["amount"] : [])],
+    sourceExcerpt: text,
   };
+}
+
+export function makeDrafts(input: string, source: LifeItem["source"]): LifeItem[] {
+  const normalized = input.trim();
+  const lineItems = normalized
+    .split(/\r?\n+/)
+    .map((part) => part.replace(/^\s*(?:[-*•]|\d+[.)])\s*/, "").trim())
+    .filter((part) => part.length > 3);
+  const sentenceItems = normalized
+    .split(/(?:[.;]\s+|\s+(?:and then|then|also)\s+|,\s+(?:and\s+)?(?=(?:call|pay|send|book|renew|buy|email|message|submit|schedule|cancel|review|confirm|register|order|return|collect|upload|download)\b))/i)
+    .map((part) => part.trim())
+    .filter((part) => part.length > 6);
+  const parts = lineItems.length > 1 ? lineItems : sentenceItems.length > 1 ? sentenceItems : [normalized];
+
+  return parts.slice(0, 8).map((part, index) => {
+    const draft = makeDraft(part, source);
+    return { ...draft, id: `${draft.id}-${index + 1}`, sourceExcerpt: part };
+  });
 }

@@ -20,9 +20,9 @@ test("server-renders the finished LifeInbox product", async () => {
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
   const html = await response.text();
-  assert.match(html, /<title>LifeInbox - Turn life admin into a clear next step<\/title>/i);
+  assert.match(html, /<title>LifeInbox - Drop it in\. Know what matters next\.<\/title>/i);
   assert.match(html, /LifeInbox/);
-  assert.match(html, /Opening your LifeInbox|Your life, finally/);
+  assert.match(html, /Opening your LifeInbox|Drop it in/);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape|react-loading-skeleton/i);
   const appSource = await readFile(new URL("../app/lifeinbox-app.tsx", import.meta.url), "utf8");
   assert.match(appSource, /Start capturing free/);
@@ -46,9 +46,9 @@ test("keeps Appwrite and secrets behind explicit boundaries", async () => {
   assert.doesNotMatch(ops, /process\.env\.APPWRITE_API_KEY/);
   assert.match(ops, /trigger === "schedule"/);
   assert.match(orchestrator, /json_schema/);
-  assert.match(layout, /\/og-bright\.png/);
+  assert.match(layout, /\/og\.png/);
   await assert.rejects(access(new URL("../app/_sites-preview", import.meta.url)));
-  await access(new URL("../public/og-bright.png", import.meta.url));
+  await access(new URL("../public/og.png", import.meta.url));
   await access(new URL("appwrite.config.json", root));
 });
 
@@ -68,6 +68,50 @@ test("keeps real workspaces free of demo state and persists production flows", a
   assert.match(client, /responseStatusCode >= 400/);
   assert.match(orchestrator, /gpt-5\.6-luna/);
   assert.match(orchestrator, /parseModelJson/);
+  assert.match(orchestrator, /MAX_EXTRACTED_ITEMS = 20/);
+  assert.match(orchestrator, /required: \["items"\]/);
+  assert.match(orchestrator, /sourceExcerpt/);
+  assert.match(app, /onReview: \(drafts: LifeItem\[\]/);
+  assert.match(app, /Save \{items\.length === 1/);
+});
+
+test("exports a designed PDF instead of raw JSON", async () => {
+  const [app, pdfExport, packageJson] = await Promise.all([
+    readFile(new URL("../app/lifeinbox-app.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../lib/pdf-export.ts", import.meta.url), "utf8"),
+    readFile(new URL("../package.json", import.meta.url), "utf8"),
+  ]);
+  assert.match(app, /await import\("@\/lib\/pdf-export"\)/);
+  assert.match(app, /Export LifeInbox report/);
+  assert.doesNotMatch(app, /lifeinbox-export\.json|application\/json/);
+  assert.match(pdfExport, /Personal clarity report/);
+  assert.match(pdfExport, /addPageNumbers/);
+  assert.match(pdfExport, /groupItems/);
+  assert.ok(JSON.parse(packageJson).dependencies.jspdf);
+});
+
+test("conservatively separates compound fallback captures", async () => {
+  const { makeDrafts } = await import(new URL("../lib/lifeinbox.ts", import.meta.url));
+  const drafts = makeDrafts("Renew insurance, call Dr Mehta tomorrow, and pay Aanya ₹1,240", "text");
+  assert.equal(drafts.length, 3);
+  assert.deepEqual(drafts.map((item) => item.title), ["Renew insurance", "call Dr Mehta tomorrow", "pay Aanya ₹1,240"]);
+  assert.equal(drafts[2].amount, "₹1,240");
+  assert.ok(drafts.every((item) => item.confidence < 80 && item.missingFields.includes("AI verification")));
+
+  const receipt = makeDrafts("Save this receipt for the project", "text")[0];
+  assert.equal(receipt.amount, undefined);
+});
+
+test("generates a real multi-page PDF document", async () => {
+  const [{ createLifeInboxPdf }, { seedItems }] = await Promise.all([
+    import(new URL("../lib/pdf-export.ts", import.meta.url)),
+    import(new URL("../lib/lifeinbox.ts", import.meta.url)),
+  ]);
+  const items = Array.from({ length: 6 }, (_, index) => seedItems.map((item) => ({ ...item, id: `${item.id}-${index}`, summary: `${item.summary} ${"Verified context. ".repeat(8)}` }))).flat();
+  const pdf = createLifeInboxPdf(items, { ownerName: "Test User", generatedAt: new Date("2026-07-15T00:00:00Z") });
+  const bytes = pdf.output("arraybuffer");
+  assert.ok(bytes.byteLength > 10_000);
+  assert.ok(pdf.getNumberOfPages() >= 3);
 });
 
 test("ships a complete installable PWA", async () => {
@@ -81,7 +125,7 @@ test("ships a complete installable PWA", async () => {
   assert.equal(parsed.display, "standalone");
   assert.ok(parsed.icons.some((icon) => icon.sizes === "192x192"));
   assert.ok(parsed.icons.some((icon) => icon.sizes === "512x512" && icon.purpose === "maskable"));
-  assert.match(serviceWorker, /lifeinbox-shell-v4/);
+  assert.match(serviceWorker, /lifeinbox-shell-v5/);
   assert.match(serviceWorker, /request\.mode === "navigate"/);
   assert.match(layout, /manifest\.webmanifest/);
   assert.match(client, /beforeinstallprompt/);
