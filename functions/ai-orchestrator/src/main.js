@@ -5,22 +5,28 @@ import pdf from "pdf-parse";
 
 const DB = process.env.APPWRITE_DATABASE_ID || "lifeinbox";
 const ACTIONS = process.env.APPWRITE_ACTIONS_COLLECTION_ID || "actions";
+const CAPTURES = process.env.APPWRITE_CAPTURES_COLLECTION_ID || "captures";
 const BRIEFINGS = process.env.APPWRITE_BRIEFINGS_COLLECTION_ID || "briefings";
 const USAGE = process.env.APPWRITE_USAGE_COLLECTION_ID || "usage";
 const BUCKET = process.env.APPWRITE_BUCKET_ID || "inbox-files";
 const MODEL = process.env.OPENAI_MODEL || "gpt-5.6-terra";
 const DAILY_LIMIT = Number(process.env.FREE_DAILY_CAPTURE_LIMIT || 50);
+const configuredDailyAiTokenLimit = Number(process.env.FREE_DAILY_AI_TOKEN_LIMIT || 250000);
+const DAILY_AI_TOKEN_LIMIT = Number.isFinite(configuredDailyAiTokenLimit) && configuredDailyAiTokenLimit > 0
+  ? Math.floor(configuredDailyAiTokenLimit)
+  : 250000;
 const MAX_EXTRACTED_ITEMS = 20;
 const REVIEW_CONFIDENCE = 80;
+const META_PREFIX = "__li_meta_v1__:";
 
 const atomicItemSchema = {
   type: "object",
   additionalProperties: false,
   properties: {
     type: { type: "string", enum: ["task", "event", "expense", "note"] },
-    title: { type: "string", maxLength: 256 },
-    summary: { type: "string", maxLength: 1200 },
-    content: { type: ["string", "null"], maxLength: 10000, description: "Full durable note body; null for action-oriented items" },
+    title: { type: "string" },
+    summary: { type: "string" },
+    content: { type: ["string", "null"], description: "Full durable note body; null for action-oriented items" },
     dueDate: { type: ["string", "null"], description: "ISO date YYYY-MM-DD when known" },
     time: { type: ["string", "null"], description: "24-hour HH:mm when known" },
     amount: { type: ["string", "null"] },
@@ -29,11 +35,10 @@ const atomicItemSchema = {
     people: { type: "array", items: { type: "string" } },
     priority: { type: "string", enum: ["high", "medium", "low"] },
     threadHint: { type: ["string", "null"] },
-    confidence: { type: "integer", minimum: 0, maximum: 100 },
+    confidence: { type: "integer" },
     missingFields: { type: "array", items: { type: "string" } },
     sourceExcerpt: {
       type: "string",
-      maxLength: 600,
       description: "The shortest exact source quote, or a literal visual observation, that supports this item",
     },
   },
@@ -46,8 +51,6 @@ const extractionSchema = {
   properties: {
     items: {
       type: "array",
-      minItems: 1,
-      maxItems: MAX_EXTRACTED_ITEMS,
       items: atomicItemSchema,
     },
   },
@@ -58,23 +61,22 @@ const brainAnswerSchema = {
   type: "object",
   additionalProperties: false,
   properties: {
-    answer: { type: "string", maxLength: 1800 },
+    answer: { type: "string" },
     nextActions: {
       type: "array",
-      maxItems: 5,
       items: {
         type: "object",
         additionalProperties: false,
         properties: {
-          title: { type: "string", maxLength: 180 },
-          why: { type: "string", maxLength: 420 },
+          title: { type: "string" },
+          why: { type: "string" },
           itemId: { type: ["string", "null"] },
         },
         required: ["title", "why", "itemId"],
       },
     },
-    insights: { type: "array", maxItems: 4, items: { type: "string", maxLength: 420 } },
-    citations: { type: "array", maxItems: 12, items: { type: "string" } },
+    insights: { type: "array", items: { type: "string" } },
+    citations: { type: "array", items: { type: "string" } },
   },
   required: ["answer", "nextActions", "insights", "citations"],
 };
@@ -82,6 +84,52 @@ const brainAnswerSchema = {
 function json(res, body, status = 200) { return res.json(body, status); }
 function today() { return new Date().toISOString().slice(0, 10); }
 function hash(value) { return crypto.createHash("sha256").update(value).digest("hex"); }
+
+class RequestError extends Error {
+  constructor(status, code, message) {
+    super(message);
+    this.name = "RequestError";
+    this.status = status;
+    this.code = code;
+  }
+}
+
+function unpackStoredPeople(value) {
+  const entries = Array.isArray(value) ? value.map(String) : [];
+  const people = entries.filter((entry) => !entry.startsWith(META_PREFIX));
+  const chunks = entries
+    .filter((entry) => entry.startsWith(META_PREFIX))
+    .map((entry) => {
+      const payload = entry.slice(META_PREFIX.length);
+      const separator = payload.indexOf(":");
+      return { index: Number(payload.slice(0, separator)), value: separator >= 0 ? payload.slice(separator + 1) : "" };
+    })
+    .filter((chunk) => Number.isInteger(chunk.index) && chunk.index >= 0)
+    .sort((a, b) => a.index - b.index);
+  if (!chunks.length) return { people, meta: {}, hasMeta: false };
+  try {
+    const parsed = JSON.parse(chunks.map((chunk) => chunk.value).join(""));
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return { people, meta: {}, hasMeta: false };
+    return { people, meta: parsed, hasMeta: true };
+  } catch {
+    return { people, meta: {}, hasMeta: false };
+  }
+}
+
+function hydrateStoredAction(document) {
+  const decoded = unpackStoredPeople(document.people);
+  return {
+    ...document,
+    people: decoded.people,
+    content: decoded.hasMeta ? decoded.meta.c : document.content,
+    pinned: decoded.hasMeta ? decoded.meta.p === true : document.pinned === true,
+    linkedFromId: decoded.hasMeta ? decoded.meta.f : document.linkedFromId,
+    linkedFromTitle: decoded.hasMeta ? decoded.meta.t : document.linkedFromTitle,
+    snoozedUntil: decoded.hasMeta ? decoded.meta.z : document.snoozedUntil,
+    missingFields: decoded.hasMeta ? (Array.isArray(decoded.meta.m) ? decoded.meta.m : []) : (Array.isArray(document.missingFields) ? document.missingFields : []),
+    sourceExcerpt: decoded.hasMeta ? decoded.meta.e : document.sourceExcerpt,
+  };
+}
 
 function services(req) {
   const dynamicKey = req.headers["x-appwrite-key"] || req.headers["X-Appwrite-Key"];
@@ -96,12 +144,17 @@ async function getUsage(databases, userId) {
   const id = hash(`${userId}:${today()}`).slice(0, 36);
   try { return await databases.getDocument({ databaseId: DB, collectionId: USAGE, documentId: id }); }
   catch (error) {
-    if (error.code !== 404) throw error;
-    return databases.createDocument({
-      databaseId: DB, collectionId: USAGE, documentId: id,
-      data: { userId, date: today(), captures: 0, inputTokens: 0, outputTokens: 0, ocrRuns: 0, sttRuns: 0, cacheHits: 0, failures: 0 },
-      permissions: [Permission.read(Role.user(userId))],
-    });
+    if (Number(error?.code) !== 404) throw error;
+    try {
+      return await databases.createDocument({
+        databaseId: DB, collectionId: USAGE, documentId: id,
+        data: { userId, date: today(), captures: 0, inputTokens: 0, outputTokens: 0, ocrRuns: 0, sttRuns: 0, cacheHits: 0, failures: 0 },
+        permissions: [Permission.read(Role.user(userId))],
+      });
+    } catch (createError) {
+      if (Number(createError?.code) !== 409) throw createError;
+      return databases.getDocument({ databaseId: DB, collectionId: USAGE, documentId: id });
+    }
   }
 }
 
@@ -118,12 +171,44 @@ async function addUsage(databases, userId, usage, extra = {}) {
   });
 }
 
+function dailyLimitResult(usage, { includeCaptureLimit = false } = {}) {
+  if (includeCaptureLimit && Number(usage.captures || 0) >= DAILY_LIMIT) {
+    return {
+      status: 429,
+      body: {
+        error: "daily_limit_reached",
+        message: "Your daily capture limit is reached. Existing items remain available.",
+      },
+    };
+  }
+  const spentTokens = Number(usage.inputTokens || 0) + Number(usage.outputTokens || 0);
+  if (spentTokens >= DAILY_AI_TOKEN_LIMIT) {
+    return {
+      status: 429,
+      body: {
+        error: "daily_ai_limit_reached",
+        message: "Your daily AI allowance is reached. Your saved items remain available, and AI features will reset tomorrow.",
+      },
+    };
+  }
+  return null;
+}
+
+async function checkDailyLimits(databases, userId, options) {
+  return dailyLimitResult(await getUsage(databases, userId), options);
+}
+
+async function assertDailyAiBudget(databases, userId) {
+  const limit = await checkDailyLimits(databases, userId);
+  if (limit) throw new RequestError(limit.status, limit.body.error, limit.body.message);
+}
+
 function parseBody(req) {
   if (req.bodyJson && typeof req.bodyJson === "object") return req.bodyJson;
   const raw = req.bodyText ?? req.bodyRaw;
   if (!raw) return {};
   try { return typeof raw === "string" ? JSON.parse(raw) : raw; }
-  catch { throw new Error("Request body must be valid JSON"); }
+  catch { throw new RequestError(400, "invalid_json", "Request body must be valid JSON."); }
 }
 
 class ModelOutputError extends Error {
@@ -166,6 +251,11 @@ function cleanNullableString(value) {
   return cleaned || null;
 }
 
+function cleanLimitedString(value, maxLength) {
+  const cleaned = cleanNullableString(value);
+  return cleaned ? Array.from(cleaned).slice(0, maxLength).join("") : null;
+}
+
 function validIsoDate(value) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
   const date = new Date(`${value}T00:00:00.000Z`);
@@ -205,20 +295,24 @@ function normalizeExtractedItems(parsed, { evidenceText = "", verifyExcerpt = fa
   for (const candidate of parsed.items.slice(0, MAX_EXTRACTED_ITEMS)) {
     const type = String(candidate?.type || "");
     const priority = String(candidate?.priority || "");
-    const title = String(candidate?.title || "").trim();
-    const summary = String(candidate?.summary || "").trim();
-    const sourceExcerpt = String(candidate?.sourceExcerpt || "").trim();
+    const title = cleanLimitedString(candidate?.title, 256);
+    const summary = cleanLimitedString(candidate?.summary, 1200);
+    const rawSourceExcerpt = String(candidate?.sourceExcerpt || "").trim();
+    const sourceExcerpt = cleanLimitedString(rawSourceExcerpt, 600);
     if (!["task", "event", "expense", "note"].includes(type) || !["high", "medium", "low"].includes(priority) || !title || !summary || !sourceExcerpt) {
       throw new ModelOutputError("Capture extraction returned an invalid item", { retryable: true, kind: "invalid_item" });
     }
-    if (verifyExcerpt && evidence && !evidence.includes(compactEvidence(sourceExcerpt))) {
+    if (verifyExcerpt && evidence && !evidence.includes(compactEvidence(rawSourceExcerpt))) {
       throw new ModelOutputError("Capture extraction returned unsupported source evidence", { retryable: true, kind: "unsupported_excerpt" });
     }
 
     const rawDueDate = cleanNullableString(candidate.dueDate);
     const rawTime = cleanNullableString(candidate.time);
     const missingFields = Array.isArray(candidate.missingFields)
-      ? candidate.missingFields.map((field) => String(field).trim()).filter(Boolean)
+      ? candidate.missingFields
+          .map((field) => cleanLimitedString(field, 128))
+          .filter(Boolean)
+          .slice(0, 20)
       : [];
     const dueDate = rawDueDate && validIsoDate(rawDueDate) ? rawDueDate : null;
     const time = rawTime && validTime(rawTime) ? rawTime : null;
@@ -232,17 +326,19 @@ function normalizeExtractedItems(parsed, { evidenceText = "", verifyExcerpt = fa
       type,
       title,
       summary,
-      content: cleanNullableString(candidate.content),
+      content: cleanLimitedString(candidate.content, 10000),
       dueDate,
       time,
-      amount: cleanNullableString(candidate.amount),
-      currency: cleanNullableString(candidate.currency),
-      location: cleanNullableString(candidate.location),
-      people: Array.isArray(candidate.people) ? [...new Set(candidate.people.map((person) => String(person).trim()).filter(Boolean))] : [],
+      amount: cleanLimitedString(candidate.amount, 64),
+      currency: cleanLimitedString(candidate.currency, 16),
+      location: cleanLimitedString(candidate.location, 256),
+      people: Array.isArray(candidate.people)
+        ? [...new Set(candidate.people.map((person) => cleanLimitedString(person, 256)).filter(Boolean))].slice(0, 20)
+        : [],
       priority,
-      threadHint: cleanNullableString(candidate.threadHint),
+      threadHint: cleanLimitedString(candidate.threadHint, 128),
       confidence,
-      missingFields: [...new Set(missingFields)],
+      missingFields: [...new Set(missingFields)].slice(0, 20),
       sourceExcerpt,
     };
     const duplicateKey = [item.type, item.title, item.summary, item.dueDate, item.time, item.amount]
@@ -283,17 +379,60 @@ async function extractStructured(openai, input, normalizationOptions) {
   throw lastError || new Error("Capture extraction failed");
 }
 
-async function normalizeCapture({ openai, storage, body }) {
+async function requireOwnedCaptureFile({ databases, storage, userId, body }) {
+  const fileId = String(body.fileId || "").trim();
+  if (!fileId) return;
+  const captureId = String(body.captureId || "").trim();
+  if (!captureId) {
+    throw new RequestError(400, "capture_id_required", "A capture ID is required when processing an uploaded file.");
+  }
+
+  let capture;
+  try {
+    capture = await databases.getDocument({
+      databaseId: DB,
+      collectionId: CAPTURES,
+      documentId: captureId,
+    });
+  } catch (caught) {
+    if ([400, 404].includes(Number(caught?.code))) {
+      throw new RequestError(403, "capture_file_forbidden", "This uploaded file does not belong to the signed-in account.");
+    }
+    throw caught;
+  }
+  if (String(capture.userId || "") !== userId || String(capture.fileId || "") !== fileId) {
+    throw new RequestError(403, "capture_file_forbidden", "This uploaded file does not belong to the signed-in account.");
+  }
+
+  let file;
+  try {
+    file = await storage.getFile({ bucketId: BUCKET, fileId });
+  } catch (caught) {
+    if ([400, 404].includes(Number(caught?.code))) {
+      throw new RequestError(403, "capture_file_forbidden", "This uploaded file does not belong to the signed-in account.");
+    }
+    throw caught;
+  }
+  const ownerReadPermission = Permission.read(Role.user(userId));
+  if (!Array.isArray(file.$permissions) || !file.$permissions.includes(ownerReadPermission)) {
+    throw new RequestError(403, "capture_file_forbidden", "This uploaded file does not belong to the signed-in account.");
+  }
+}
+
+async function normalizeCapture({ openai, databases, storage, userId, body }) {
   const source = String(body.source || "text");
   const directText = String(body.input || "").trim();
-  if (!body.fileId) return { mode: "direct-text", text: directText, content: [{ type: "input_text", text: directText }] };
+  const fileId = String(body.fileId || "").trim();
+  if (!fileId) return { mode: "direct-text", text: directText, content: [{ type: "input_text", text: directText }] };
 
-  const bytes = Buffer.from(await storage.getFileDownload({ bucketId: BUCKET, fileId: String(body.fileId) }));
+  await requireOwnedCaptureFile({ databases, storage, userId, body });
+  const bytes = Buffer.from(await storage.getFileDownload({ bucketId: BUCKET, fileId }));
   const mimeType = String(body.mimeType || "application/octet-stream");
   const fileName = String(body.fileName || `capture.${source}`);
 
   if (source === "voice") {
     const audio = new File([bytes], fileName, { type: mimeType });
+    await assertDailyAiBudget(databases, userId);
     const transcript = await openai.audio.transcriptions.create({ model: "gpt-4o-mini-transcribe", file: audio });
     return { mode: "stt-first", text: transcript.text, content: [{ type: "input_text", text: transcript.text }], sttRuns: 1 };
   }
@@ -313,9 +452,9 @@ async function normalizeCapture({ openai, storage, body }) {
 }
 
 async function extract({ openai, databases, storage, userId, body }) {
-  const usage = await getUsage(databases, userId);
-  if (usage.captures >= DAILY_LIMIT) return { status: 429, body: { error: "daily_limit_reached", message: "Your daily capture limit is reached. Existing items remain available." } };
-  const normalized = await normalizeCapture({ openai, storage, body });
+  const limit = await checkDailyLimits(databases, userId, { includeCaptureLimit: true });
+  if (limit) return limit;
+  const normalized = await normalizeCapture({ openai, databases, storage, userId, body });
   if (!normalized.text && !normalized.content.length) return { status: 400, body: { error: "input_required" } };
   const suppliedDate = cleanNullableString(body.localDate);
   const referenceDate = suppliedDate && validIsoDate(suppliedDate) ? suppliedDate : today();
@@ -332,6 +471,7 @@ async function extract({ openai, databases, storage, userId, body }) {
       const intentInstructions = captureIntent === "note"
         ? `The user explicitly chose Save as note. Return exactly one item with type note. Preserve the useful information faithfully in content instead of inventing actions. Use a concise searchable title and summary. Set action-only dates, time, amount, and urgency only when they are literal reference facts; priority should normally be low.`
         : `The user chose automatic organization. Separate every explicit action while preserving purely informational material as notes.`;
+      await assertDailyAiBudget(databases, userId);
       result = await extractStructured(openai, [
       { role: "system", content: `You are LifeInbox's high-precision capture parser. The user's reference date is ${referenceDate}; their time zone is ${timezone}.
 
@@ -365,7 +505,9 @@ For notes, content contains the faithful durable body a user should be able to r
         verifyExcerpt: ["direct-text", "stt-first", "pdf-text", "file-metadata"].includes(normalized.mode),
       });
     } catch (caught) {
-      await addUsage(databases, userId, caught?.usage, { failures: 1, ocrRuns: normalized.ocrRuns || 0, sttRuns: normalized.sttRuns || 0 }).catch(() => {});
+      if (!(caught instanceof RequestError)) {
+        await addUsage(databases, userId, caught?.usage, { failures: 1, ocrRuns: normalized.ocrRuns || 0, sttRuns: normalized.sttRuns || 0 }).catch(() => {});
+      }
       throw caught;
     }
     extractionUsage = result.usage;
@@ -431,9 +573,11 @@ async function relevantActions(databases, userId, queries = []) {
     queries: [Query.equal("userId", [userId]), Query.notEqual("status", "done"), ...queries, Query.limit(100)],
   });
   return result.documents
-    .filter((document) => document.type !== "note")
+    .map(hydrateStoredAction)
+    .filter((document) => document.type !== "note" && document.status !== "snoozed")
+    .sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)))
     .slice(0, 40)
-    .map(({ $id, title, summary, dueDate, dueLabel, priority, threadName, type, amount }) => ({ id: $id, title, summary, dueDate, dueLabel, priority, threadName, type, amount }));
+    .map(({ $id, title, summary, dueDate, dueLabel, priority, threadName, type, amount, pinned }) => ({ id: $id, title, summary, dueDate, dueLabel, priority, threadName, type, amount, pinned: Boolean(pinned) }));
 }
 
 async function actionsForBrain(databases, userId) {
@@ -442,7 +586,7 @@ async function actionsForBrain(databases, userId) {
     collectionId: ACTIONS,
     queries: [Query.equal("userId", [userId]), Query.orderDesc("createdAt"), Query.limit(100)],
   });
-  return result.documents.map(({ $id, title, summary, content, dueDate, dueLabel, time, priority, threadName, type, amount, location, people, status, createdAt }) => ({
+  return result.documents.map(hydrateStoredAction).map(({ $id, title, summary, content, dueDate, dueLabel, time, priority, threadName, type, amount, location, people, status, createdAt, pinned, linkedFromId, linkedFromTitle, snoozedUntil }) => ({
     id: $id,
     title,
     summary,
@@ -458,7 +602,24 @@ async function actionsForBrain(databases, userId) {
     people,
     status,
     createdAt,
+    pinned: Boolean(pinned),
+    linkedFromId,
+    linkedFromTitle,
+    snoozedUntil,
   }));
+}
+
+function packBrainRecords(items, maxChars = 42000) {
+  const packed = [];
+  let used = 2;
+  for (const item of items) {
+    const safe = { ...item, content: item.content ? String(item.content).slice(0, 2500) : undefined };
+    const encoded = JSON.stringify(safe);
+    if (used + encoded.length + (packed.length ? 1 : 0) > maxChars) continue;
+    packed.push(safe);
+    used += encoded.length + (packed.length > 1 ? 1 : 0);
+  }
+  return JSON.stringify(packed);
 }
 
 function rankActionsForQuestion(items, question) {
@@ -479,7 +640,7 @@ function rankActionsForQuestion(items, question) {
     .map(({ item }) => item);
 }
 
-async function createBrainAnswer(openai, question, items) {
+async function createBrainAnswer(openai, question, items, context = {}) {
   let usage = {};
   let lastError;
   for (const maxOutputTokens of [4000, 8000]) {
@@ -496,7 +657,7 @@ Answer the user's question directly, then identify the smallest useful next move
 
 For nextActions, use imperative titles and short practical reasons. itemId must be an exact supplied ID or null. citations must contain only exact supplied IDs that support the answer. Do not expose hidden reasoning or chain-of-thought.`,
         },
-        { role: "user", content: `Question: ${question}\n\nLifeInbox records:\n${JSON.stringify(items).slice(0, 42000)}` },
+        { role: "user", content: `Local date: ${context.localDate || today()}\nTime zone: ${context.timezone || "not provided"}\nQuestion: ${question}\n\nLifeInbox records:\n${packBrainRecords(items)}` },
       ],
       reasoning: { effort: "high" },
       text: { format: { type: "json_schema", name: "lifeinbox_superbrain", strict: true, schema: brainAnswerSchema } },
@@ -509,7 +670,21 @@ For nextActions, use imperative titles and short practical reasons. itemId must 
       if (!parsed?.answer || !Array.isArray(parsed.nextActions) || !Array.isArray(parsed.insights) || !Array.isArray(parsed.citations)) {
         throw new ModelOutputError("LifeInbox Superbrain returned an invalid plan", { retryable: true, kind: "invalid_plan" });
       }
-      return { parsed, usage };
+      const normalized = {
+        answer: cleanLimitedString(parsed.answer, 1800),
+        nextActions: parsed.nextActions
+          .slice(0, 5)
+          .map((action) => ({
+            title: cleanLimitedString(action?.title, 180),
+            why: cleanLimitedString(action?.why, 420),
+            itemId: cleanLimitedString(action?.itemId, 128),
+          }))
+          .filter((action) => action.title && action.why),
+        insights: parsed.insights.map((insight) => cleanLimitedString(insight, 420)).filter(Boolean).slice(0, 4),
+        citations: parsed.citations.map((citation) => cleanLimitedString(citation, 128)).filter(Boolean).slice(0, 12),
+      };
+      if (!normalized.answer) throw new ModelOutputError("LifeInbox Superbrain returned an empty answer", { retryable: true, kind: "invalid_plan" });
+      return { parsed: normalized, usage };
     } catch (error) {
       lastError = error;
       if (error instanceof ModelOutputError && !error.retryable) throw error;
@@ -524,13 +699,17 @@ async function ask({ openai, databases, userId, body }) {
   const allItems = await actionsForBrain(databases, userId);
   if (!allItems.length) return { status: 200, body: { answer: "Your LifeInbox is empty right now. Capture your first task, note, event, or expense and I can help you decide what to do next.", nextActions: [], insights: [], citations: [], model: MODEL, reasoningEffort: "high" } };
   const items = rankActionsForQuestion(allItems, question);
-  const { parsed, usage } = await createBrainAnswer(openai, question, items);
+  const suppliedDate = String(body.localDate || "");
+  const timezone = String(body.timezone || "").slice(0, 100);
+  const modelLimit = await checkDailyLimits(databases, userId);
+  if (modelLimit) return modelLimit;
+  const { parsed, usage } = await createBrainAnswer(openai, question, items, { localDate: validIsoDate(suppliedDate) ? suppliedDate : today(), timezone });
   await addUsage(databases, userId, usage);
   const validIds = new Set(items.map((item) => item.id));
   const nextActions = parsed.nextActions
     .map((action) => ({ title: String(action.title || "").trim(), why: String(action.why || "").trim(), itemId: action.itemId && validIds.has(String(action.itemId)) ? String(action.itemId) : null }))
     .filter((action) => action.title && action.why);
-  const citations = [...new Set([...parsed.citations, ...nextActions.map((action) => action.itemId)].filter((id) => id && validIds.has(String(id))).map(String))];
+  const citations = [...new Set([...parsed.citations, ...nextActions.map((action) => action.itemId)].filter((id) => id && validIds.has(String(id))).map(String))].slice(0, 12);
   return {
     status: 200,
     body: {
@@ -544,25 +723,29 @@ async function ask({ openai, databases, userId, body }) {
   };
 }
 
-async function briefing({ openai, databases, userId }) {
+async function briefing({ openai, databases, userId, body }) {
+  const suppliedDate = String(body.localDate || "");
+  const localDate = validIsoDate(suppliedDate) ? suppliedDate : today();
   const items = await relevantActions(databases, userId, [Query.orderAsc("dueDate")]);
-  const versionHash = hash(JSON.stringify(items.map((item) => [item.id, item.dueDate, item.priority])));
-  const cached = await databases.listDocuments({ databaseId: DB, collectionId: BRIEFINGS, queries: [Query.equal("userId", [userId]), Query.equal("date", [today()]), Query.limit(1)] });
+  const versionHash = hash(JSON.stringify(items.map((item) => [item.id, item.title, item.summary, item.dueDate, item.dueLabel, item.priority, item.pinned])));
+  const cached = await databases.listDocuments({ databaseId: DB, collectionId: BRIEFINGS, queries: [Query.equal("userId", [userId]), Query.equal("date", [localDate]), Query.limit(1)] });
   if (cached.documents[0]?.versionHash === versionHash) {
     await addUsage(databases, userId, null, { cacheHits: 1 });
     return { status: 200, body: { briefing: cached.documents[0].content, itemIds: cached.documents[0].itemIds, cached: true } };
   }
-  const focused = items.filter((item) => item.priority === "high" || item.dueDate).slice(0, 12);
+  const focused = items.filter((item) => item.pinned || item.priority === "high" || item.dueDate).sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned))).slice(0, 12);
   if (!focused.length) return { status: 200, body: { briefing: "Your day is clear. Capture anything you want LifeInbox to remember, organize, or turn into a next step.", itemIds: [], cached: false } };
+  const limit = await checkDailyLimits(databases, userId);
+  if (limit) return limit;
   const response = await openai.responses.create({
     model: MODEL,
-    input: `Create a warm, direct daily briefing in 70 words or fewer. Mention at most three things and lead with the clearest next step. Use only these items: ${JSON.stringify(focused)}`,
+    input: `The user's local date is ${localDate}. Create a warm, direct daily briefing in 70 words or fewer. Mention at most three things and lead with the clearest next step. Pinned items are intentional user choices and should normally lead. Use only these items: ${JSON.stringify(focused)}`,
     reasoning: { effort: "high" },
     max_output_tokens: 2500,
   });
   const content = String(response.output_text || "").trim();
   if (!content) throw new Error("Daily briefing returned no usable output");
-  const data = { userId, date: today(), content, itemIds: focused.map((item) => item.id), versionHash, createdAt: new Date().toISOString() };
+  const data = { userId, date: localDate, content, itemIds: focused.map((item) => item.id), versionHash, createdAt: new Date().toISOString() };
   if (cached.documents[0]) await databases.updateDocument({ databaseId: DB, collectionId: BRIEFINGS, documentId: cached.documents[0].$id, data });
   else await databases.createDocument({ databaseId: DB, collectionId: BRIEFINGS, documentId: ID.unique(), data, permissions: [Permission.read(Role.user(userId))] });
   await addUsage(databases, userId, response.usage);
@@ -573,6 +756,8 @@ async function regroup({ openai, databases, userId }) {
   const items = await relevantActions(databases, userId);
   const deterministic = items.filter((item) => item.threadName).reduce((groups, item) => ({ ...groups, [item.threadName]: [...(groups[item.threadName] || []), item.id] }), {});
   if (Object.keys(deterministic).length || items.length < 2) return { status: 200, body: { groups: deterministic, source: "deterministic" } };
+  const limit = await checkDailyLimits(databases, userId);
+  if (limit) return limit;
   const response = await openai.responses.create({ model: MODEL, input: `Group only clearly related items. Return compact JSON mapping thread names to item IDs. Do not force unrelated items together: ${JSON.stringify(items)}`, reasoning: { effort: "high" }, max_output_tokens: 3000 });
   await addUsage(databases, userId, response.usage);
   return { status: 200, body: { groups: parseModelJson(response, "Thread grouping"), source: "model" } };
@@ -595,6 +780,10 @@ async function handler({ req, res, log, error }) {
     log(`${route} completed with ${MODEL} for ${userId.slice(0, 6)}...`);
     return json(res, result.body, result.status);
   } catch (caught) {
+    if (caught instanceof RequestError) {
+      log(`${String(caught.code)} rejected for ${userId.slice(0, 6)}...`);
+      return json(res, { error: caught.code, message: caught.message }, caught.status);
+    }
     error(caught instanceof Error ? caught.stack || caught.message : String(caught));
     const modelFailure = caught instanceof ModelOutputError || Number(caught?.status || 0) === 429 || Number(caught?.status || 0) >= 500;
     return json(res, {

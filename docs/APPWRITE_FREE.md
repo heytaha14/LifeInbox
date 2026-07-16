@@ -15,9 +15,13 @@
 1. Reuse cached extraction and briefing results.
 2. Prefer extracted text over OCR and images.
 3. Compress previews before upload or model input.
-4. Lower free daily capture quotas before hard service limits.
+4. Lower free daily capture or all-route token budgets before hard service limits.
 5. Enter manual-review mode instead of retrying repeated AI failures.
-6. Reduce file retention while preserving reviewed action records.
+6. Reduce the deployment-wide file retention period while preserving reviewed action and permanent Note records.
+
+## Attribute-limit strategy
+
+The `actions` collection intentionally keeps the original compact schema. Optional LifeInbox metadata—full note bodies, Smart Focus pins, note backlinks, timed snooze values, missing fields, and source evidence—is serialized into ordered, versioned chunks inside the existing `people` string array. The browser and AI function decode those chunks before use, so reserved metadata never appears as a person. This avoids paid-plan assumptions and keeps existing Appwrite Free projects migration-safe.
 
 ## Alert thresholds
 

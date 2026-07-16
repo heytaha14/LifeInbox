@@ -30,6 +30,80 @@ function isConflict(error: unknown): boolean {
   return typeof error === "object" && error !== null && "code" in error && Number((error as { code?: unknown }).code) === 409;
 }
 
+const META_PREFIX = "__li_meta_v1__:";
+const META_CHUNK_SIZE = 220;
+
+type StoredLifeItemMeta = {
+  v?: 1;
+  c?: string;
+  p?: true;
+  f?: string;
+  t?: string;
+  z?: string;
+  m?: string[];
+  e?: string;
+};
+
+function compactMeta(meta: StoredLifeItemMeta): StoredLifeItemMeta {
+  return {
+    v: 1,
+    c: meta.c || undefined,
+    p: meta.p || undefined,
+    f: meta.f || undefined,
+    t: meta.t || undefined,
+    z: meta.z || undefined,
+    m: meta.m?.length ? meta.m : undefined,
+    e: meta.e || undefined,
+  };
+}
+
+export function packPeople(people: readonly string[] | undefined, meta: StoredLifeItemMeta): string[] {
+  const visiblePeople = (people ?? []).map(String).filter((person) => person && !person.startsWith(META_PREFIX));
+  const serialized = JSON.stringify(compactMeta(meta));
+  const characters = Array.from(serialized);
+  const chunks: string[] = [];
+  for (let offset = 0, index = 0; offset < characters.length; offset += META_CHUNK_SIZE, index += 1) {
+    chunks.push(`${META_PREFIX}${String(index).padStart(3, "0")}:${characters.slice(offset, offset + META_CHUNK_SIZE).join("")}`);
+  }
+  return [...visiblePeople, ...chunks];
+}
+
+export function unpackPeople(value: unknown): { people: string[]; meta: StoredLifeItemMeta; hasMeta: boolean } {
+  const entries = Array.isArray(value) ? value.map(String) : [];
+  const people = entries.filter((entry) => !entry.startsWith(META_PREFIX));
+  const chunks = entries
+    .filter((entry) => entry.startsWith(META_PREFIX))
+    .map((entry) => {
+      const payload = entry.slice(META_PREFIX.length);
+      const separator = payload.indexOf(":");
+      return { index: Number(payload.slice(0, separator)), value: separator >= 0 ? payload.slice(separator + 1) : "" };
+    })
+    .filter((chunk) => Number.isInteger(chunk.index) && chunk.index >= 0)
+    .sort((a, b) => a.index - b.index);
+  if (!chunks.length) return { people, meta: {}, hasMeta: false };
+  try {
+    const parsed = JSON.parse(chunks.map((chunk) => chunk.value).join("")) as StoredLifeItemMeta;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return { people, meta: {}, hasMeta: false };
+    return { people, meta: compactMeta(parsed), hasMeta: true };
+  } catch {
+    return { people, meta: {}, hasMeta: false };
+  }
+}
+
+function metaFromItem(item: Partial<LifeItem>): StoredLifeItemMeta {
+  return compactMeta({
+    c: item.content,
+    p: item.pinned ? true : undefined,
+    f: item.linkedFromId,
+    t: item.linkedFromTitle,
+    z: item.snoozedUntil,
+    m: item.missingFields,
+    e: item.sourceExcerpt,
+  });
+}
+
+const hasOwn = (value: object, key: PropertyKey) => Object.prototype.hasOwnProperty.call(value, key);
+
 export async function getCurrentUser(): Promise<AuthUser | null> {
   if (!isAppwriteConfigured) return null;
   try {
@@ -77,13 +151,12 @@ export async function saveLifeItem(item: LifeItem, userId: string) {
     type: item.type,
     title: item.title,
     summary: item.summary,
-    content: item.content,
     dueLabel: item.dueLabel,
     dueDate: item.dueDate,
     time: item.time,
     amount: item.amount,
     location: item.location,
-    people: item.people ?? [],
+    people: packPeople(item.people, metaFromItem(item)),
     priority: item.priority,
     confidence: item.confidence,
     threadId: item.threadId,
@@ -106,14 +179,54 @@ export async function saveLifeItem(item: LifeItem, userId: string) {
   }
 }
 
-type LifeItemUpdate = Partial<Omit<LifeItem, "threadId" | "threadName">> & { threadId?: string | null; threadName?: string | null };
+type LifeItemUpdate = Partial<Omit<LifeItem, "threadId" | "threadName" | "snoozedUntil">> & {
+  threadId?: string | null;
+  threadName?: string | null;
+  snoozedUntil?: string | null;
+};
 
 export async function updateLifeItem(itemId: string, data: LifeItemUpdate) {
+  const metadataKeys: Array<keyof LifeItemUpdate> = ["content", "pinned", "linkedFromId", "linkedFromTitle", "snoozedUntil", "missingFields", "sourceExcerpt", "people"];
+  const directKeys: Array<keyof LifeItemUpdate> = ["type", "title", "summary", "dueLabel", "dueDate", "time", "amount", "location", "priority", "confidence", "threadId", "threadName", "status", "source", "createdAt"];
+  const payload: Record<string, unknown> = {};
+  for (const key of directKeys) {
+    if (hasOwn(data, key) && data[key] !== undefined) payload[key] = data[key];
+  }
+
+  if (metadataKeys.some((key) => hasOwn(data, key))) {
+    const document = await databases.getDocument({
+      databaseId: appwriteConfig.databaseId,
+      collectionId: appwriteConfig.actionsCollectionId,
+      documentId: itemId,
+    });
+    const decoded = unpackPeople(document.people);
+    const meta = decoded.hasMeta
+      ? compactMeta(decoded.meta)
+      : compactMeta({
+          c: typeof document.content === "string" ? document.content : undefined,
+          p: document.pinned === true ? true : undefined,
+          f: typeof document.linkedFromId === "string" ? document.linkedFromId : undefined,
+          t: typeof document.linkedFromTitle === "string" ? document.linkedFromTitle : undefined,
+          z: typeof document.snoozedUntil === "string" ? document.snoozedUntil : undefined,
+          m: Array.isArray(document.missingFields) ? document.missingFields.map(String) : undefined,
+          e: typeof document.sourceExcerpt === "string" ? document.sourceExcerpt : undefined,
+        });
+    if (hasOwn(data, "content")) meta.c = data.content || undefined;
+    if (hasOwn(data, "pinned")) meta.p = data.pinned ? true : undefined;
+    if (hasOwn(data, "linkedFromId")) meta.f = data.linkedFromId || undefined;
+    if (hasOwn(data, "linkedFromTitle")) meta.t = data.linkedFromTitle || undefined;
+    if (hasOwn(data, "snoozedUntil")) meta.z = data.snoozedUntil || undefined;
+    if (hasOwn(data, "missingFields")) meta.m = data.missingFields?.length ? data.missingFields : undefined;
+    if (hasOwn(data, "sourceExcerpt")) meta.e = data.sourceExcerpt || undefined;
+    const people = hasOwn(data, "people") ? data.people : decoded.people;
+    payload.people = packPeople(people, meta);
+  }
+
   return databases.updateDocument({
     databaseId: appwriteConfig.databaseId,
     collectionId: appwriteConfig.actionsCollectionId,
     documentId: itemId,
-    data,
+    data: payload,
   });
 }
 
@@ -210,7 +323,42 @@ export async function listLifeItems(userId: string): Promise<LifeItem[]> {
     if (result.documents.length < pageSize) break;
     offset += result.documents.length;
   }
-  return documents.map((document) => ({ ...document, id: document.$id })) as unknown as LifeItem[];
+  return documents.map((document) => {
+    const decoded = unpackPeople(document.people);
+    const type = ["task", "event", "expense", "note"].includes(String(document.type)) ? String(document.type) as LifeItem["type"] : "task";
+    const priority = ["high", "medium", "low"].includes(String(document.priority)) ? String(document.priority) as LifeItem["priority"] : "medium";
+    const status = ["inbox", "today", "done", "snoozed"].includes(String(document.status)) ? String(document.status) as LifeItem["status"] : "inbox";
+    const source = ["text", "image", "pdf", "voice"].includes(String(document.source)) ? String(document.source) as LifeItem["source"] : "text";
+    const optionalString = (value: unknown) => typeof value === "string" && value ? value : undefined;
+    return {
+      id: document.$id,
+      type,
+      title: String(document.title || "Untitled item"),
+      summary: String(document.summary || ""),
+      content: decoded.hasMeta ? decoded.meta.c : optionalString(document.content),
+      dueLabel: optionalString(document.dueLabel),
+      dueDate: optionalString(document.dueDate),
+      time: optionalString(document.time),
+      amount: optionalString(document.amount),
+      location: optionalString(document.location),
+      people: decoded.people,
+      priority,
+      confidence: Number(document.confidence || 0),
+      threadId: optionalString(document.threadId),
+      threadName: optionalString(document.threadName),
+      status,
+      source,
+      createdAt: String(document.createdAt || document.$createdAt || new Date().toISOString()),
+      pinned: decoded.hasMeta ? Boolean(decoded.meta.p) : document.pinned === true,
+      linkedFromId: decoded.hasMeta ? decoded.meta.f : optionalString(document.linkedFromId),
+      linkedFromTitle: decoded.hasMeta ? decoded.meta.t : optionalString(document.linkedFromTitle),
+      snoozedUntil: decoded.hasMeta ? decoded.meta.z : optionalString(document.snoozedUntil),
+      missingFields: decoded.hasMeta
+        ? decoded.meta.m ?? []
+        : (Array.isArray(document.missingFields) ? document.missingFields.map(String) : []),
+      sourceExcerpt: decoded.hasMeta ? decoded.meta.e : optionalString(document.sourceExcerpt),
+    };
+  });
 }
 
 export async function listLifeThreads(userId: string): Promise<LifeThread[]> {
@@ -251,7 +399,7 @@ export async function askOrExtract(route: "extract" | "ask" | "today-brief" | "r
   return response;
 }
 
-export async function runOps(route: "delete-account" | "export", payload: Record<string, unknown> = {}) {
+export async function runOps(route: "delete-account", payload: Record<string, unknown> = {}) {
   if (!appwriteConfig.opsFunctionId) return null;
   const execution = await appwriteFunctions.createExecution({
     functionId: appwriteConfig.opsFunctionId,

@@ -60,7 +60,6 @@ const collections = [
       { key: "type", type: "string", size: 16, required: true },
       { key: "title", type: "string", size: 256, required: true },
       { key: "summary", type: "string", size: 2048, required: true },
-      { key: "content", type: "string", size: 10000, required: false },
       { key: "dueLabel", type: "string", size: 128, required: false },
       { key: "dueDate", type: "string", size: 32, required: false },
       { key: "time", type: "string", size: 16, required: false },
@@ -132,14 +131,6 @@ const collections = [
   },
 ];
 
-async function createOrKeep(label, create) {
-  try { await create(); console.log(`Created ${label}`); }
-  catch (error) {
-    if (error?.code === 409) console.log(`Kept existing ${label}`);
-    else throw error;
-  }
-}
-
 async function getOrCreate(label, get, create) {
   try { await get(); console.log(`Kept existing ${label}`); }
   catch (error) {
@@ -167,15 +158,10 @@ for (const collection of collections) {
   );
 }
 
-// Existing Appwrite collections are preserved above, so evolve optional fields
-// explicitly as an idempotent production migration.
-await createOrKeep("attribute actions.content", () => databases.createStringAttribute({
-  databaseId: ids.database,
-  collectionId: ids.actions,
-  key: "content",
-  size: 10000,
-  required: false,
-}));
+// LifeInbox keeps optional note bodies, pins, backlinks, snooze dates, and AI
+// evidence in versioned chunks inside the existing `people` string array.
+// This preserves the Appwrite Free schema and avoids attribute-limit migrations.
+console.log("Using Appwrite Free compact metadata storage for optional action fields");
 
 await getOrCreate(
   "storage bucket",

@@ -11,6 +11,7 @@ Request body:
   "route": "extract",
   "source": "text",
   "input": "Renew insurance Friday at 5 PM, then email the receipt to Maya",
+  "captureId": "capture-document-id",
   "captureIntent": "organize",
   "localDate": "2026-07-15",
   "timezone": "Asia/Calcutta"
@@ -73,6 +74,8 @@ The function decomposes the capture into as many as 20 independent, source-groun
 
 Low-confidence items or items with entries in `missingFields` are marked `needsReview`. The client always presents the full batch for editable review before any action documents are saved.
 
+For a file-backed capture, the request also includes `fileId`. Before downloading it, the function verifies that `captureId` belongs to the authenticated user, references that exact file ID, and that the file carries the owner's read permission. Client-supplied user IDs are never trusted.
+
 Set `captureIntent` to `note` when the user explicitly chooses **Save as note**. The function then returns exactly one `type: "note"` item with a faithful `content` body (up to 10,000 characters). Text, transcripts, and embedded PDF text are copied into the durable body without model paraphrasing; image and scanned-file notes use a grounded model transcription. Notes remain saved until the owning user deletes them.
 
 ## `POST /ask`
@@ -91,13 +94,16 @@ Returns `{ briefing, itemIds, cached }`. Cache validity is based on a hash of th
 
 Returns deterministic groups when existing thread hints are sufficient and calls the model only for genuinely ambiguous ungrouped sets.
 
+## AI usage limits
+
+`FREE_DAILY_CAPTURE_LIMIT` caps AI-organized capture batches per user/day. `FREE_DAILY_AI_TOKEN_LIMIT` caps the combined recorded input and output tokens per user/day across `/extract`, `/ask`, uncached `/today-brief`, and model-assisted `/regroup-thread`. The limit is checked before a model call; deterministic grouping, cached briefings, and all saved data remain available after exhaustion.
+
 ## Ops routes
 
-The scheduled `ops` function defaults to `cleanup`. Manual calls require `x-ops-secret`.
+The scheduled `ops` function defaults to `cleanup`, including schedule invocations whose path normalizes to empty. Manual calls require `x-ops-secret`.
 
-- `/cleanup`: removes original files and capture metadata older than the retention period
+- `/cleanup`: removes owner-verified original files and capture metadata older than the deployment-wide retention period (30 days by default)
 - `/usage`: returns the bounded current-day usage summary
-- `/billing-webhook`: accepts provider-ready mock events without granting entitlements yet
 - `/health`: verifies the ops function entrypoint
 
 ## Error contract

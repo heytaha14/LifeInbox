@@ -24,7 +24,7 @@ LifeInbox turns text, images, PDFs, receipts, and recorded voice into editable t
 
 The user reviews the result, edits or removes individual items, and approves only what is correct. Approved actions power a focused Today briefing and active/completed Inbox; permanent notes live in a searchable Notes library and remain available to Ask LifeInbox as reference knowledge without becoming fake outstanding work.
 
-The product includes a clean iOS-inspired white, graphite, and lime interface; a responsive phone, tablet, and desktop workspace; an installable PWA; per-user Appwrite permissions; retention and deletion controls; and a designed multi-page PDF report with cover, metrics, grouped items, and page numbers.
+The product includes a clean iOS-inspired white, graphite, and lime interface; a responsive phone, tablet, and desktop workspace; an installable PWA; per-user Appwrite permissions; automatic 30-day original-upload cleanup and full workspace deletion; and a designed multi-page PDF report with cover, metrics, grouped items, and page numbers.
 
 ### How we built it
 
@@ -52,7 +52,7 @@ We also hardened the Responses API boundary for cases where a model refuses, ret
 - Designed branded PDF export instead of a raw JSON dump
 - Real Appwrite authentication, per-user persistence, and isolated demo data
 - Minimal iOS-inspired responsive UI and installable PWA behavior
-- Private-by-design server-only AI keys, retention, export, and deletion controls
+- Private-by-design server-only AI keys, transparent 30-day upload cleanup, export, and full deletion
 
 ### What we learned
 
@@ -115,7 +115,7 @@ Generate and briefly show the PDF, then show one mobile responsive view or the i
 
 ### 2:20–2:40 — trust and Codex
 
-> Nothing is saved before review, AI keys stay server-side, and users control retention and full workspace deletion. Codex was my primary engineering collaborator: it implemented and redesigned the product, hardened the AI and Appwrite flows, added tests and documentation, deployed the stack, and helped verify the complete experience. LifeInbox: drop it in, understand it, and move on.
+> Nothing is saved before review, AI keys stay server-side, original uploads are cleaned up after 30 days, and users can delete their full workspace. Codex was my primary engineering collaborator: it implemented and redesigned the product, hardened the AI and Appwrite flows, added tests and documentation, deployed the stack, and helped verify the complete experience. LifeInbox: drop it in, understand it, and move on.
 
 End on the Today screen or landing hero with the LifeInbox mark.
 

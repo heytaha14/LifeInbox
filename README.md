@@ -10,7 +10,7 @@
 **Live project:** [lifeinbox-calm.explorertaha.chatgpt.site](https://lifeinbox-calm.explorertaha.chatgpt.site/)
 **OpenAI Build Week track:** Apps for Your Life
 
-LifeInbox is a private, mobile-first life-admin assistant with a clean iOS-inspired workspace. Users can ask GPT-5.6 to split a messy capture into source-grounded actions or preserve it as one permanent note, review the result, and work from Today, Inbox, Notes, connected Life Threads, and an Ask experience grounded only in their own saved items.
+LifeInbox is a private, mobile-first personal life operating system with a clean iOS-inspired workspace. Users can ask GPT-5.6 to split a messy capture into source-grounded actions or preserve it as one permanent note, review the result, and work from Smart Focus, Today, Inbox, Notes, connected Life Threads, and an Ask experience grounded only in their own saved items.
 
 ## Why this exists
 
@@ -34,8 +34,10 @@ The fastest path requires no credentials and no local setup:
 7. Complete one item, choose the **Completed** inbox filter, and confirm that it remains easy to find or restore.
 8. Open **Ask LifeInbox**, ask `What should I do first?`, then click its citation to open the exact supporting item.
 9. Open **New capture**, select **Save as note**, save a useful reference, and confirm it appears in **Notes** after refresh.
-10. Open **Settings → Privacy**, export the designed PDF report, and inspect its cover, summary metrics, grouped items, notes, and page numbers.
-11. Delete the temporary workspace from **Settings → Privacy**.
+10. Open that note and choose **Turn into action**. Confirm the action retains a backlink to its source note.
+11. Press `Ctrl/Command + K` to open Spotlight, search across items and Life Threads, then launch a 25-minute Focus Session from a result.
+12. Open **Settings → Privacy**, export the designed PDF report, and inspect its cover, summary metrics, grouped items, notes, and page numbers.
+13. Delete the temporary workspace from **Settings → Privacy**.
 
 Demo mode is intentionally isolated from authenticated accounts. New real accounts always start with an empty workspace.
 
@@ -50,15 +52,18 @@ Demo mode is intentionally isolated from authenticated accounts. New real accoun
 - Batch review with per-item tabs, confidence, missing-information guidance, editing, removal, and approve-all
 - Permissioned Appwrite rows and files owned by the signed-in user
 - Today briefing generated from current high-priority and dated actions; reference notes do not become fake work
-- Searchable, filterable inbox with active and completed views plus complete, restore, snooze, detail, and delete actions
-- Life Thread creation, AI suggestions, persistent linking, and non-destructive deletion
+- Smart Focus ranking with explicit pins, due-date awareness, Today priority, and a distraction-free 25-minute focus timer
+- Universal Spotlight command center with keyboard access, cross-workspace search, quick capture actions, and navigation
+- Searchable, filterable inbox with open, Focus, task, event, expense, Later, and completed views plus complete, restore, real timed snooze, detail, and delete actions
+- Note-to-action conversion with source backlinks, inherited Life Thread context, and permanent-note preservation
+- Life Thread creation, AI suggestions, persistent linking, progress cockpit, quick thread capture, and non-destructive deletion
 - Ask LifeInbox answers grounded in user data with clickable item citations
-- Preference storage, retention controls, a branded multi-page PDF export, and full workspace deletion
+- Preference storage, a clear 30-day original-upload cleanup policy, a branded multi-page PDF export, and full workspace deletion
 - Installable PWA with offline app shell, custom icons, safe areas, and install guidance
 - Minimal white, graphite, and lime landing page with iOS-inspired product graphics and focused conversion paths
-- Phone bottom navigation, compact tablet rail, floating desktop shell, and full-screen mobile capture/review
+- Edge-to-edge iOS-style phone tab bar, labeled tablet rail, floating desktop shell, keyboard-safe sheets, accessible drawers/dialogs, and full-screen mobile capture/review
 - Appwrite setup automation for five collections, one file bucket, indexes, and permissions
-- Server-side AI orchestration, usage accounting, file cleanup, and operational controls
+- Server-side AI orchestration, per-user capture and all-route token budgets, owned-file cleanup, and operational controls
 
 ## Architecture
 
@@ -76,7 +81,7 @@ flowchart LR
   X --> S
 ```
 
-The browser receives only public Appwrite identifiers. `OPENAI_API_KEY`, `OPS_SECRET`, and the one-time Appwrite bootstrap key never enter the client bundle. Appwrite Functions use scoped dynamic execution keys and every saved row/file is permissioned to its owner.
+The browser receives only public Appwrite identifiers. `OPENAI_API_KEY`, `OPS_SECRET`, and the one-time Appwrite bootstrap key never enter the client bundle. Appwrite Functions use scoped dynamic execution keys and every saved row/file is permissioned to its owner. File-backed extraction binds the submitted file to an owner-matched capture record before download, and original uploads are automatically removed after the deployment-wide 30-day retention period. Approved actions and permanent Notes remain until the user deletes them.
 
 ## How GPT-5.6 is used
 
@@ -149,8 +154,8 @@ Then follow [docs/SETUP.md](docs/SETUP.md). In short:
 1. Create an Appwrite project and add `localhost` as a Web platform.
 2. Add the public Appwrite endpoint/project values and one-time bootstrap key to `.env.local`.
 3. Run `npm run appwrite:setup` to create collections, indexes, permissions, and storage.
-4. Deploy the Appwrite functions.
-5. Add `OPENAI_API_KEY` and `OPENAI_MODEL=gpt-5.6-terra` only to the AI function.
+4. Run `npm run appwrite:deploy` to create or reconcile, package, upload, activate, and verify the Appwrite functions.
+5. Add `OPENAI_API_KEY`, `OPENAI_MODEL=gpt-5.6-terra`, `FREE_DAILY_CAPTURE_LIMIT=50`, and `FREE_DAILY_AI_TOKEN_LIMIT=250000` only to the AI function.
 6. Add `OPS_SECRET` and `FILE_RETENTION_DAYS=30` only to the Ops function.
 7. Restart the app and create a real account.
 
@@ -176,6 +181,8 @@ Never commit `.env.local` or expose the OpenAI/Appwrite secret keys through a `N
 npm run lint
 npm run typecheck
 npm test
+npm ci --prefix functions/ai-orchestrator --omit=dev
+npm ci --prefix functions/ops --omit=dev
 node --check functions/ai-orchestrator/src/main.js
 node --check functions/ops/src/main.js
 ```

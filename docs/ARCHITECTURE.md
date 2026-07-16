@@ -10,8 +10,8 @@ Appwrite owns identity, durable records, object storage, row/file authorization,
 
 1. The user signs in with an Appwrite email/password session.
 2. A capture is uploaded directly to the permissioned `inbox-files` bucket when it contains a file.
-3. The browser executes `ai-orchestrator/extract` with text plus safe metadata, including the user's local date and time zone for explicit relative-date resolution.
-4. The orchestrator checks the authenticated Appwrite user header and the daily quota.
+3. The browser executes `ai-orchestrator/extract` with text plus safe metadata, including the capture ID, file ID, user's local date, and time zone for explicit relative-date resolution.
+4. The orchestrator checks the authenticated Appwrite user header, binds any file ID to an owner-matched capture document and file permission, and enforces the user's daily capture and shared AI token budgets.
 5. The cheapest viable route is selected: embedded text, OCR only when needed, preview-image understanding only when layout matters, or transcription before audio extraction.
 6. GPT-5.6 Terra uses high reasoning and strict Structured Outputs to return `items[]`: up to 20 small, independent tasks, events, expenses, or notes from an organized capture. An explicit Notes capture returns one faithful durable note instead. A legacy `item` alias mirrors `items[0]` only for older clients.
 7. The orchestrator validates source evidence, duplicate intent, enums, dates, and times. Each item carries a `sourceExcerpt`, confidence score, and explicit `missingFields`; incomplete, refused, empty, or unsupported output fails safely.
@@ -27,11 +27,11 @@ Appwrite owns identity, durable records, object storage, row/file authorization,
 - No default realtime subscription
 - Cursor-ready compound indexes and bounded list sizes
 - Full-text indexes for title, summary, and thread fields
+- Versioned, hidden metadata chunks reuse the existing `people` string array for note bodies, pins, backlinks, snooze dates, and AI evidence; this avoids exhausting Free-plan attribute limits while the client and orchestrator expose only real people
 - File size capped at 10 MB in the client and bucket
 - Server quotas and graceful manual-review mode
 - One briefing document per user/day
-- Scheduled retention only through `ops`
-- Provider-neutral billing event route with a mock provider today
+- Scheduled deployment-wide 30-day original-upload retention only through `ops`; approved actions and Notes remain until deletion
 
 ## Experience layers
 

@@ -14,6 +14,7 @@
 - Appwrite Functions authenticate to Appwrite with scoped per-execution dynamic keys rather than a deployed static API key.
 - No secret has a `NEXT_PUBLIC_` prefix.
 - Function logs contain route names and a short user-ID prefix only; they must never log capture text or files.
+- File-backed extraction requires an owner-matched capture record and verifies the file's owner read permission before download.
 
 ## Data minimization
 
@@ -21,11 +22,12 @@
 - OCR is reserved for scanned pages.
 - Model image input is reserved for captures whose layout materially changes meaning.
 - EXIF and temporary derivatives should be removed by the preprocessing layer before model input.
-- Original files follow the user's retention setting and are removed by `ops`.
+- Original files and capture metadata follow the deployment-wide `FILE_RETENTION_DAYS` policy and are removed by scheduled `ops` cleanup. The production default is 30 days; this is disclosed in the UI rather than presented as a per-user control.
+- Approved actions and permanent Notes are retained until their owner deletes them or deletes the workspace.
 
 ## Abuse controls
 
-- Per-user daily quotas are enforced before an AI call.
+- Per-user daily capture and input-plus-output token budgets are enforced before every model-backed route. Cached briefings and deterministic grouping can still return without an AI call.
 - Inputs and result sets are bounded.
 - Strict Structured Outputs prevent arbitrary model-shaped writes; extraction is capped at 20 items per capture.
 - Source excerpts are checked against textual evidence, dates and times are normalized conservatively, and duplicate intents are removed before review.

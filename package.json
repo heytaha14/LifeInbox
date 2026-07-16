@@ -13,7 +13,7 @@
     "lint": "eslint app lib functions scripts tests",
     "typecheck": "tsc --noEmit",
     "appwrite:setup": "node scripts/setup-appwrite.mjs",
-    "appwrite:deploy": "appwrite push functions --all"
+    "appwrite:deploy": "node scripts/deploy-appwrite-functions.mjs"
   },
   "dependencies": {
     "appwrite": "^21.5.0",

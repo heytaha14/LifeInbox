@@ -1,4 +1,4 @@
-import { Client, Databases, Query, Storage, Users } from "node-appwrite";
+import { Client, Databases, Permission, Query, Role, Storage, Users } from "node-appwrite";
 
 const DB = process.env.APPWRITE_DATABASE_ID || "lifeinbox";
 const CAPTURES = process.env.APPWRITE_CAPTURES_COLLECTION_ID || "captures";
@@ -22,6 +22,20 @@ function body(req) {
   catch { return {}; }
 }
 
+async function deleteOwnedFile(storage, fileId, userId) {
+  if (!fileId || !userId) return false;
+  try {
+    const file = await storage.getFile({ bucketId: BUCKET, fileId });
+    const ownerReadPermission = Permission.read(Role.user(String(userId)));
+    if (!Array.isArray(file.$permissions) || !file.$permissions.includes(ownerReadPermission)) return false;
+    await storage.deleteFile({ bucketId: BUCKET, fileId });
+    return true;
+  } catch (error) {
+    if (error?.code === 404) return false;
+    throw error;
+  }
+}
+
 async function cleanup(databases, storage, log) {
   const retentionDays = Math.max(1, Number(process.env.FILE_RETENTION_DAYS || 30));
   const cutoff = new Date(Date.now() - retentionDays * 86400000).toISOString();
@@ -33,10 +47,7 @@ async function cleanup(databases, storage, log) {
     if (cursor) queries.push(Query.cursorAfter(cursor));
     const page = await databases.listDocuments({ databaseId: DB, collectionId: CAPTURES, queries });
     for (const capture of page.documents) {
-      if (capture.fileId) {
-        try { await storage.deleteFile({ bucketId: BUCKET, fileId: capture.fileId }); deletedFiles += 1; }
-        catch (error) { if (error.code !== 404) throw error; }
-      }
+      if (await deleteOwnedFile(storage, capture.fileId, capture.userId)) deletedFiles += 1;
       await databases.deleteDocument({ databaseId: DB, collectionId: CAPTURES, documentId: capture.$id });
       deletedCaptures += 1;
     }
@@ -70,7 +81,7 @@ async function deleteAccount(databases, storage, users, userId) {
       if (cursor) queries.push(Query.cursorAfter(cursor));
       const page = await databases.listDocuments({ databaseId: DB, collectionId, queries });
       for (const document of page.documents) {
-        if (collectionId === CAPTURES && document.fileId) await storage.deleteFile({ bucketId: BUCKET, fileId: document.fileId }).catch(() => {});
+        if (collectionId === CAPTURES) await deleteOwnedFile(storage, document.fileId, document.userId).catch(() => false);
         await databases.deleteDocument({ databaseId: DB, collectionId, documentId: document.$id });
       }
       cursor = page.documents.length === 100 ? page.documents.at(-1).$id : undefined;
@@ -83,10 +94,11 @@ async function deleteAccount(databases, storage, users, userId) {
 async function handler({ req, res, log, error }) {
   if (!req.headers["x-appwrite-key"]) return res.json({ error: "function_not_configured" }, 503);
   const request = body(req);
-  const route = String(request.route || req.path || "cleanup").replace(/^\//, "");
-  const userId = req.headers["x-appwrite-user-id"] || req.headers["X-Appwrite-User-Id"];
   const trigger = String(req.headers["x-appwrite-trigger"] || req.headers["X-Appwrite-Trigger"] || "").toLowerCase();
   const scheduled = trigger === "schedule";
+  const requestedRoute = String(request.route || req.path || "cleanup").replace(/^\/+/, "");
+  const route = scheduled && !requestedRoute ? "cleanup" : requestedRoute;
+  const userId = req.headers["x-appwrite-user-id"] || req.headers["X-Appwrite-User-Id"];
   const suppliedSecret = req.headers["x-ops-secret"] || req.headers["X-Ops-Secret"];
   const userOwnedRoute = route === "delete-account" && Boolean(userId);
   if (!scheduled && !userOwnedRoute && (!process.env.OPS_SECRET || suppliedSecret !== process.env.OPS_SECRET)) return res.json({ error: "forbidden" }, 403);
@@ -95,10 +107,6 @@ async function handler({ req, res, log, error }) {
     if (route === "delete-account") return res.json(await deleteAccount(databases, storage, users, userId));
     if (route === "cleanup") return res.json(await cleanup(databases, storage, log));
     if (route === "usage") return res.json(await usageSummary(databases));
-    if (route === "billing-webhook") {
-      log(`Billing event staged: ${String(request.event || "unknown")}`);
-      return res.json({ accepted: true, provider: "mock", readyForProvider: true }, 202);
-    }
     if (route === "health") return res.json({ ok: true, service: "lifeinbox-ops" });
     return res.json({ error: "route_not_found" }, 404);
   } catch (caught) {

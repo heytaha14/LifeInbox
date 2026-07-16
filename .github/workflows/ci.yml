@@ -22,9 +22,28 @@ jobs:
         with:
           node-version: 22
           cache: npm
+          cache-dependency-path: package-lock.json
       - run: npm ci --no-audit --no-fund
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
-      - run: node --check functions/ai-orchestrator/src/main.js
-      - run: node --check functions/ops/src/main.js
+
+  function-dependencies:
+    name: Function · ${{ matrix.function }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        function:
+          - ai-orchestrator
+          - ops
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: functions/${{ matrix.function }}/package-lock.json
+      - run: npm ci --prefix functions/${{ matrix.function }} --omit=dev --no-audit --no-fund
+      - run: node --check functions/${{ matrix.function }}/src/main.js

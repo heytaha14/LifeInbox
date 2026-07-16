@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Download, Share2, WifiOff, X } from "lucide-react";
 
 type InstallPromptEvent = Event & {
@@ -9,7 +9,10 @@ type InstallPromptEvent = Event & {
 };
 
 export function PwaClient() {
+  const reloadForUpdate = useRef(false);
   const [installPrompt, setInstallPrompt] = useState<InstallPromptEvent | null>(null);
+  const [waitingWorker, setWaitingWorker] = useState<ServiceWorker | null>(null);
+  const [updateBlocked, setUpdateBlocked] = useState(false);
   const [isIos] = useState(() => typeof navigator !== "undefined" && /iphone|ipad|ipod/i.test(navigator.userAgent));
   const [isStandalone, setIsStandalone] = useState(() => typeof window !== "undefined" && (window.matchMedia("(display-mode: standalone)").matches || Boolean((navigator as Navigator & { standalone?: boolean }).standalone)));
   const [showIosHelp, setShowIosHelp] = useState(false);
@@ -17,7 +20,6 @@ export function PwaClient() {
   const [online, setOnline] = useState(() => typeof navigator === "undefined" || navigator.onLine !== false);
 
   useEffect(() => {
-    let refreshing = false;
     let registration: ServiceWorkerRegistration | null = null;
     const onBeforeInstall = (event: Event) => {
       event.preventDefault();
@@ -33,18 +35,23 @@ export function PwaClient() {
     window.addEventListener("offline", onOffline);
 
     const onControllerChange = () => {
-      if (refreshing) return;
-      refreshing = true;
-      window.location.reload();
+      if (reloadForUpdate.current) window.location.reload();
     };
     const refreshWorker = () => { if (document.visibilityState === "visible") void registration?.update(); };
+    const watchInstallingWorker = (worker: ServiceWorker | null) => {
+      if (!worker) return;
+      worker.addEventListener("statechange", () => {
+        if (worker.state === "installed" && navigator.serviceWorker.controller) setWaitingWorker(registration?.waiting ?? worker);
+      });
+    };
 
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.addEventListener("controllerchange", onControllerChange);
       const register = async () => {
         registration = await navigator.serviceWorker.register("/sw.js", { scope: "/", updateViaCache: "none" });
+        setWaitingWorker(registration.waiting);
+        registration.addEventListener("updatefound", () => watchInstallingWorker(registration?.installing ?? null));
         await registration.update();
-        registration.waiting?.postMessage("SKIP_WAITING");
       };
       if (document.readyState === "complete") void register();
       else window.addEventListener("load", register, { once: true });
@@ -61,6 +68,18 @@ export function PwaClient() {
     };
   }, []);
 
+  function applyUpdate() {
+    const hasPendingWork = Boolean(document.querySelector('[role="dialog"], .review-resume-card'));
+    if (hasPendingWork) {
+      setUpdateBlocked(true);
+      return;
+    }
+    if (!window.confirm("Update LifeInbox now? The app will reload once. Save any edits first.")) return;
+    setUpdateBlocked(false);
+    reloadForUpdate.current = true;
+    waitingWorker?.postMessage("SKIP_WAITING");
+  }
+
   async function install() {
     if (installPrompt) {
       await installPrompt.prompt();
@@ -71,10 +90,16 @@ export function PwaClient() {
     if (isIos) setShowIosHelp(true);
   }
 
-  const canOfferInstall = !isStandalone && !dismissed && (Boolean(installPrompt) || isIos);
+  const canOfferInstall = !waitingWorker && !isStandalone && !dismissed && (Boolean(installPrompt) || isIos);
 
   return <>
     {!online && <div className="offline-pill" role="status"><WifiOff size={15} /> You&apos;re offline. Saved screens remain available.</div>}
+    {waitingWorker && <aside className="install-card" aria-label="LifeInbox update available">
+      <button className="install-close" onClick={() => { setWaitingWorker(null); setUpdateBlocked(false); }} aria-label="Update later"><X size={15} /></button>
+      <span className="install-icon"><Download size={20} /></span>
+      <div><b>A fresh LifeInbox is ready</b><p>{updateBlocked ? "Finish or discard the open capture first, then update." : "Update when you are ready. LifeInbox will reload once."}</p></div>
+      <button className="install-action" onClick={applyUpdate}>{updateBlocked ? "Check again" : "Update app"}</button>
+    </aside>}
     {canOfferInstall && <aside className="install-card" aria-label="Install LifeInbox">
       <button className="install-close" onClick={() => setDismissed(true)} aria-label="Dismiss install suggestion"><X size={15} /></button>
       <span className="install-icon"><Download size={20} /></span>

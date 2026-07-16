@@ -22,6 +22,13 @@ export type LifeItem = {
   status: ItemStatus;
   source: "text" | "image" | "pdf" | "voice";
   createdAt: string;
+  /** User-selected items are promoted in Focus without changing their status. */
+  pinned?: boolean;
+  /** Backlink created when a durable note becomes an actionable item. */
+  linkedFromId?: string;
+  linkedFromTitle?: string;
+  /** Exact time when a snoozed action should return to the open inbox. */
+  snoozedUntil?: string;
   missingFields?: string[];
   sourceExcerpt?: string;
 };
@@ -40,7 +47,7 @@ export const seedItems: LifeItem[] = [
   {
     id: "li-1", type: "task", title: "Renew car insurance", summary: "Policy expires Friday. Compare renewal quote before paying.",
     dueLabel: "Today, 5:00 PM", dueDate: "2026-07-15", time: "17:00", priority: "high", confidence: 96,
-    threadId: "home", threadName: "Home & admin", status: "today", source: "pdf", createdAt: "2026-07-15T08:14:00Z",
+    threadId: "home", threadName: "Home & admin", status: "today", source: "pdf", createdAt: "2026-07-15T08:14:00Z", pinned: true,
   },
   {
     id: "li-2", type: "event", title: "Flight to Goa", summary: "IndiGo 6E 2127 from Delhi T1. Web check-in opens tomorrow.",
@@ -55,7 +62,7 @@ export const seedItems: LifeItem[] = [
   {
     id: "li-4", type: "note", title: "Ideas for Mum's birthday", summary: "Book the pottery workshop or plan a quiet lunch at Olive.",
     dueLabel: "Before 24 Jul", dueDate: "2026-07-24", priority: "low", confidence: 78,
-    threadId: "family", threadName: "Mum's birthday", status: "inbox", source: "voice", createdAt: "2026-07-13T09:24:00Z",
+    threadId: "family", threadName: "Mum's birthday", status: "inbox", source: "voice", createdAt: "2026-07-13T09:24:00Z", pinned: true,
   },
   {
     id: "li-5", type: "task", title: "Send hotel confirmation to Kabir", summary: "Share the booking PDF and airport pickup details.",
@@ -130,4 +137,59 @@ export function makeNoteDraft(input: string, source: LifeItem["source"]): LifeIt
     missingFields: source === "text" ? [] : ["AI verification"],
     sourceExcerpt: content.slice(0, 600),
   };
+}
+
+export type NoteActionInput = {
+  type: Exclude<ItemType, "note">;
+  title: string;
+  summary?: string;
+  dueDate?: string;
+  priority: Priority;
+  addToToday?: boolean;
+};
+
+export function makeActionFromNote(note: LifeItem, input: NoteActionInput): LifeItem {
+  const title = input.title.trim() || note.title;
+  const summary = input.summary?.trim() || `Created from the note “${note.title}”.`;
+  return {
+    id: `li-${Date.now()}`,
+    type: input.type,
+    title,
+    summary,
+    dueDate: input.dueDate || undefined,
+    dueLabel: input.dueDate || "No date",
+    priority: input.priority,
+    confidence: 100,
+    threadId: note.threadId,
+    threadName: note.threadName,
+    status: input.addToToday ? "today" : "inbox",
+    source: "text",
+    createdAt: new Date().toISOString(),
+    linkedFromId: note.id,
+    linkedFromTitle: note.title,
+    sourceExcerpt: (note.content || note.summary).slice(0, 600),
+  };
+}
+
+const priorityWeight: Record<Priority, number> = { high: 30, medium: 20, low: 10 };
+
+export function sortForFocus(items: readonly LifeItem[]): LifeItem[] {
+  const today = new Date().toLocaleDateString("en-CA");
+  return items
+    .filter((item) => item.type !== "note" && item.status !== "done" && item.status !== "snoozed")
+    .map((item, index) => ({
+      item,
+      index,
+      score:
+        (item.pinned ? 100 : 0) +
+        (item.status === "today" ? 45 : 0) +
+        priorityWeight[item.priority] +
+        (item.dueDate === today ? 35 : item.dueDate && item.dueDate < today ? 50 : 0),
+    }))
+    .sort((a, b) =>
+      b.score - a.score ||
+      String(a.item.dueDate || "9999-12-31").localeCompare(String(b.item.dueDate || "9999-12-31")) ||
+      a.index - b.index
+    )
+    .map(({ item }) => item);
 }

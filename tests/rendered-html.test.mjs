@@ -79,7 +79,143 @@ test("keeps real workspaces free of demo state and persists production flows", a
   assert.match(app, /onReview: \(drafts: LifeItem\[\]/);
   assert.match(app, /Save as note/);
   assert.match(app, /function NotesView/);
-  assert.match(client, /content: item\.content/);
+  assert.match(client, /META_PREFIX = "__li_meta_v1__:"/);
+  assert.match(client, /packPeople\(item\.people, metaFromItem\(item\)\)/);
+  assert.match(client, /decoded\.meta\.c/);
+  assert.match(client, /decoded\.meta\.p/);
+  assert.match(client, /decoded\.meta\.z/);
+  assert.match(orchestrator, /hydrateStoredAction/);
+  const strictSchemas = orchestrator.slice(orchestrator.indexOf("const atomicItemSchema"), orchestrator.indexOf("function json"));
+  assert.doesNotMatch(strictSchemas, /maxLength|minItems|maxItems|minimum|maximum/);
+  assert.match(orchestrator, /cleanLimitedString/);
+  assert.match(orchestrator, /\.map\(hydrateStoredAction\)[\s\S]*?\.sort\(\(a, b\) => Number\(Boolean\(b\.pinned\)\)/);
+});
+
+test("hardens capture ownership, AI budgets, retention, and optimistic deletion", async () => {
+  const [app, orchestrator, ops, envExample, readme, security] = await Promise.all([
+    readFile(new URL("../app/lifeinbox-app.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../functions/ai-orchestrator/src/main.js", import.meta.url), "utf8"),
+    readFile(new URL("../functions/ops/src/main.js", import.meta.url), "utf8"),
+    readFile(new URL("../.env.example", import.meta.url), "utf8"),
+    readFile(new URL("../README.md", import.meta.url), "utf8"),
+    readFile(new URL("../docs/SECURITY.md", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(app, /askOrExtract\("extract", \{[\s\S]*?fileId, captureId,/);
+  assert.match(orchestrator, /APPWRITE_CAPTURES_COLLECTION_ID/);
+  assert.match(orchestrator, /databases\.getDocument\([\s\S]*?documentId: captureId/);
+  assert.match(orchestrator, /capture\.userId[\s\S]*?capture\.fileId/);
+  assert.match(orchestrator, /storage\.getFile\(\{ bucketId: BUCKET, fileId \}\)/);
+  assert.match(orchestrator, /Permission\.read\(Role\.user\(userId\)\)/);
+
+  assert.match(orchestrator, /FREE_DAILY_AI_TOKEN_LIMIT/);
+  for (const route of ["extract", "ask", "briefing", "regroup"]) {
+    const start = orchestrator.indexOf(`async function ${route}(`);
+    const end = orchestrator.indexOf("\nasync function ", start + 1);
+    const body = orchestrator.slice(start, end === -1 ? undefined : end);
+    assert.ok(start >= 0, `${route} route must exist`);
+    assert.match(body, /checkDailyLimits/, `${route} must enforce the shared daily AI budget`);
+  }
+
+  assert.match(ops, /async function deleteOwnedFile/);
+  assert.match(ops, /Permission\.read\(Role\.user\(String\(userId\)\)\)/);
+  assert.ok((ops.match(/deleteOwnedFile\(/g) || []).length >= 3, "owned-file deletion must protect cleanup and account deletion");
+  assert.match(ops, /scheduled && !requestedRoute \? "cleanup" : requestedRoute/);
+
+  const deleteStart = app.indexOf("async function deleteItem(");
+  const deleteEnd = app.indexOf("\n  async function ", deleteStart + 1);
+  const deleteBody = app.slice(deleteStart, deleteEnd);
+  assert.match(deleteBody, /setItems\(\(all\) => all\.filter/);
+  assert.match(deleteBody, /await deleteLifeItem\(id\)/);
+  assert.match(deleteBody, /restored\.splice/);
+  assert.match(deleteBody, /item was restored/i);
+
+  assert.match(app, /automatically removed after 30 days/);
+  assert.doesNotMatch(app, /retentionDays|setRetentionDays|Delete after processing/i);
+  assert.match(envExample, /FREE_DAILY_AI_TOKEN_LIMIT=250000/);
+  assert.match(readme, /deployment-wide 30-day retention period/);
+  assert.match(security, /rather than presented as a per-user control/);
+});
+
+test("ships the focus, command center, note-to-action, and thread cockpit workflow", async () => {
+  const [app, powerTools, lifeInbox] = await Promise.all([
+    readFile(new URL("../app/lifeinbox-app.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/lifeinbox-power-tools.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../lib/lifeinbox.ts", import.meta.url), "utf8"),
+  ]);
+  assert.match(app, /<CommandCenter/);
+  assert.match(app, /<FocusSession/);
+  assert.match(app, /Turn into action/);
+  assert.match(app, /Thread cockpit/);
+  assert.match(app, /Pinned to Smart Focus/);
+  assert.match(powerTools, /Find anything/);
+  assert.match(powerTools, /NoteToActionModal/);
+  assert.match(powerTools, /25-MINUTE SESSION/);
+  assert.match(lifeInbox, /sortForFocus/);
+  assert.match(lifeInbox, /linkedFromId/);
+});
+
+test("ranks focus safely and creates traceable actions from notes", async () => {
+  const { makeActionFromNote, sortForFocus } = await import(new URL("../lib/lifeinbox.ts", import.meta.url));
+  const base = {
+    summary: "Context",
+    priority: "medium",
+    confidence: 100,
+    source: "text",
+    createdAt: "2026-07-16T00:00:00.000Z",
+    status: "inbox",
+  };
+  const items = [
+    { ...base, id: "normal", type: "task", title: "Normal task" },
+    { ...base, id: "pinned", type: "task", title: "Pinned task", priority: "low", pinned: true },
+    { ...base, id: "note", type: "note", title: "Reference note", content: "Useful context" },
+    { ...base, id: "done", type: "task", title: "Finished", status: "done" },
+    { ...base, id: "later", type: "task", title: "Snoozed", status: "snoozed" },
+  ];
+  const ranked = sortForFocus(items);
+  assert.deepEqual(ranked.map((item) => item.id), ["pinned", "normal"]);
+
+  const note = { ...base, id: "note-1", type: "note", title: "Trip brief", content: "A".repeat(1_000), threadId: "thread-1", threadName: "Japan trip" };
+  const action = makeActionFromNote(note, { type: "task", title: "Book the train", priority: "high", addToToday: true });
+  assert.equal(action.status, "today");
+  assert.equal(action.linkedFromId, "note-1");
+  assert.equal(action.linkedFromTitle, "Trip brief");
+  assert.equal(action.threadId, "thread-1");
+  assert.equal(action.sourceExcerpt.length, 600);
+});
+
+test("round-trips Appwrite Free metadata without leaking it into people", async () => {
+  const { packPeople, unpackPeople } = await import(new URL("../lib/appwrite.ts", import.meta.url));
+  const content = `Reference 🧠 ${"details ".repeat(1_100)}`;
+  const encoded = packPeople(["Maya", "Aanya"], {
+    c: content,
+    p: true,
+    f: "note-source",
+    t: "Travel reference",
+    z: "2026-07-17T09:00:00.000Z",
+    m: ["Confirm terminal"],
+    e: "book a dentist appointment",
+  });
+  assert.ok(encoded.every((entry) => Array.from(entry).length <= 256));
+  assert.ok(encoded.some((entry) => entry.startsWith("__li_meta_v1__:")));
+  const decoded = unpackPeople(encoded);
+  assert.deepEqual(decoded.people, ["Maya", "Aanya"]);
+  assert.equal(decoded.hasMeta, true);
+  assert.equal(decoded.meta.v, 1);
+  assert.equal(decoded.meta.c, content);
+  assert.equal(decoded.meta.p, true);
+  assert.equal(decoded.meta.f, "note-source");
+  assert.deepEqual(decoded.meta.m, ["Confirm terminal"]);
+
+  const cleared = unpackPeople(packPeople(["Maya"], {}));
+  assert.equal(cleared.hasMeta, true);
+  assert.equal(cleared.meta.v, 1);
+  assert.equal(cleared.meta.c, undefined);
+  assert.equal(cleared.meta.p, undefined);
+
+  const legacy = unpackPeople(["Maya"]);
+  assert.equal(legacy.hasMeta, false);
+  assert.deepEqual(legacy.meta, {});
 });
 
 test("exports a designed PDF instead of raw JSON", async () => {
@@ -138,11 +274,15 @@ test("ships a complete installable PWA", async () => {
   assert.equal(parsed.display, "standalone");
   assert.ok(parsed.icons.some((icon) => icon.sizes === "192x192"));
   assert.ok(parsed.icons.some((icon) => icon.sizes === "512x512" && icon.purpose === "maskable"));
-  assert.match(serviceWorker, /lifeinbox-shell-v7/);
+  assert.match(serviceWorker, /lifeinbox-shell-v9/);
   assert.match(serviceWorker, /request\.mode === "navigate"/);
+  assert.match(serviceWorker, /if \(url\.search\)/);
+  assert.doesNotMatch(serviceWorker.match(/self\.addEventListener\("install"[\s\S]*?\n\}\);/)?.[0] ?? "", /skipWaiting/);
   assert.match(layout, /manifest\.webmanifest/);
   assert.match(client, /beforeinstallprompt/);
   assert.match(client, /controllerchange/);
+  assert.match(client, /A fresh LifeInbox is ready/);
+  assert.match(client, /document\.querySelector\('\[role="dialog"\], \.review-resume-card'\)/);
   await access(new URL("../public/icons/icon-192.png", import.meta.url));
   await access(new URL("../public/icons/icon-512.png", import.meta.url));
   await access(new URL("../public/icons/apple-touch-icon.png", import.meta.url));

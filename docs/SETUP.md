@@ -7,7 +7,6 @@ This guide connects the existing LifeInbox website to Appwrite Cloud and OpenAI 
 - Node.js 22.13 or newer and npm
 - An Appwrite Cloud account
 - An OpenAI API Platform account with billing or available credits
-- The Appwrite CLI: `npm install -g appwrite-cli`
 
 ## 2. Create the Appwrite project
 
@@ -19,7 +18,7 @@ This guide connects the existing LifeInbox website to Appwrite Cloud and OpenAI 
 
 ## 3. Create the one-time bootstrap API key
 
-In **Project settings > API keys**, create a key named `LifeInbox local setup`. Grant the database-management and bucket-management write scopes needed to create the database, collections, attributes, indexes, and storage bucket. Keep this key only in `.env.local`; it is not used by the website and is not deployed to either function.
+In **Project settings > API keys**, create a key named `LifeInbox local setup`. Grant the database-management, bucket-management, function, deployment, and function-variable scopes needed by the setup and deploy scripts. Keep this key only in `.env.local`; it is not used by the website and is not deployed to either function.
 
 Copy `.env.example` to `.env.local`, then set:
 
@@ -42,16 +41,15 @@ The setup is safe to rerun: existing resources are kept.
 
 ## 4. Configure and deploy the Appwrite Functions
 
-1. Put your project ID into the `projectId` field of `appwrite.config.json`.
-2. If your Appwrite endpoint differs from the default, update the `endpoint` field too.
-3. Log in and deploy:
+Deploy from the project root:
 
 ```powershell
-appwrite login
 npm run appwrite:deploy
 ```
 
-The checked-in function scopes create a short-lived dynamic Appwrite key for each execution. Do not add the bootstrap `APPWRITE_API_KEY` to either function.
+The deploy script reads the endpoint and project ID from `.env.local`. It uses `appwrite.config.json` only for the checked-in function definitions, so you do not need to edit the config for a different Appwrite project. It creates either function if it is missing, reconciles its runtime, permissions, schedule, timeout, entrypoint, build command, scopes, and runtime specification, then packages, uploads, activates, and verifies the deployment. It also updates the non-secret `OPENAI_MODEL` variable to `gpt-5.6-terra`. The checked-in function scopes create a short-lived dynamic Appwrite key for each execution. Do not add the bootstrap `APPWRITE_API_KEY` to either function.
+
+If deployment reports a missing `functions.read`, `functions.write`, deployment, or variable scope, create a replacement bootstrap API key with those scopes and update only `APPWRITE_API_KEY` in `.env.local`.
 
 ## 5. Create and connect the OpenAI API key
 
@@ -65,7 +63,10 @@ The checked-in function scopes create a short-lived dynamic Appwrite key for eac
 OPENAI_API_KEY=<YOUR_OPENAI_PROJECT_KEY>
 OPENAI_MODEL=gpt-5.6-terra
 FREE_DAILY_CAPTURE_LIMIT=50
+FREE_DAILY_AI_TOKEN_LIMIT=250000
 ```
+
+`FREE_DAILY_CAPTURE_LIMIT` caps new AI capture batches per user/day. `FREE_DAILY_AI_TOKEN_LIMIT` is a shared per-user/day input-plus-output token budget enforced before every model-backed route: capture, Ask, uncached briefing, and model-assisted regrouping. Cached or deterministic results remain available without spending the budget.
 
 6. Redeploy the AI function after creating or changing variables.
 
@@ -77,6 +78,8 @@ FILE_RETENTION_DAYS=30
 ```
 
 Then redeploy the Ops function. The secret is only needed for protected administrator routes; signed-in users can still request deletion of their own workspace.
+
+`FILE_RETENTION_DAYS` is one deployment-wide policy, not a per-user preference. With the recommended value, original uploads and their capture metadata are automatically removed after 30 days. Approved actions and permanent Notes remain until their owner deletes them.
 
 If the default resource IDs were changed, also add the matching `APPWRITE_DATABASE_ID`, collection ID, and bucket ID variables to both functions.
 
@@ -105,6 +108,7 @@ Test in this order:
 - Android/desktop Chrome or Edge: choose **Install app** when LifeInbox offers it, or use the browser install icon.
 - iPhone/iPad Safari: tap **Share**, then **Add to Home Screen**.
 - Installed mode uses custom icons, standalone app chrome, safe-area spacing, and an offline app-shell fallback. Live Appwrite and AI actions still require a network connection.
+- PWA updates are offered inside the app and reload only after you choose **Update app**. Finish or discard any open capture/review first.
 
 ## Security checklist
 
