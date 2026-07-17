@@ -41,6 +41,9 @@ test("keeps Appwrite and secrets behind explicit boundaries", async () => {
   assert.match(client, /https:\/\/fra\.cloud\.appwrite\.io\/v1/);
   assert.match(client, /6a572c3f0008220bd0cf/);
   assert.match(client, /NEXT_PUBLIC_APPWRITE_AI_FUNCTION_ID \|\| "ai-orchestrator"/);
+  assert.match(client, /clearFallbackSession/);
+  assert.match(client, /role: guests/);
+  assert.match(client, /secure session expired/);
   assert.doesNotMatch(client, /OPENAI_API_KEY|APPWRITE_API_KEY/);
   assert.match(setup, /APPWRITE_API_KEY/);
   assert.match(orchestrator, /x-appwrite-user-id/i);
@@ -141,10 +144,12 @@ test("hardens capture ownership, AI budgets, retention, and optimistic deletion"
 });
 
 test("ships the focus, command center, note-to-action, and thread cockpit workflow", async () => {
-  const [app, powerTools, lifeInbox] = await Promise.all([
+  const [app, powerTools, lifeInbox, styles, iosStyles] = await Promise.all([
     readFile(new URL("../app/lifeinbox-app.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/lifeinbox-power-tools.tsx", import.meta.url), "utf8"),
     readFile(new URL("../lib/lifeinbox.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+    readFile(new URL("../app/ios-redesign.css", import.meta.url), "utf8"),
   ]);
   assert.match(app, /<CommandCenter/);
   assert.match(app, /<FocusSession/);
@@ -156,6 +161,12 @@ test("ships the focus, command center, note-to-action, and thread cockpit workfl
   assert.match(powerTools, /25-MINUTE SESSION/);
   assert.match(lifeInbox, /sortForFocus/);
   assert.match(lifeInbox, /linkedFromId/);
+  assert.match(styles, /\.ask-box input \{ color: #111318/);
+  assert.match(styles, /\.today-view \.type-icon\.sage/);
+  assert.match(styles, /#eeeaff 48%,#edf6ff 100%/);
+  assert.match(iosStyles, /\.ask-box input \{ color: #111318/);
+  assert.match(iosStyles, /rgba\(115,87,232,.22\)/);
+  assert.match(iosStyles, /\.today-view \.type-icon\.sage/);
 });
 
 test("ranks focus safely and creates traceable actions from notes", async () => {
@@ -277,7 +288,7 @@ test("ships a complete installable PWA", async () => {
   assert.equal(parsed.display, "standalone");
   assert.ok(parsed.icons.some((icon) => icon.sizes === "192x192"));
   assert.ok(parsed.icons.some((icon) => icon.sizes === "512x512" && icon.purpose === "maskable"));
-  assert.match(serviceWorker, /lifeinbox-shell-v10/);
+  assert.match(serviceWorker, /lifeinbox-shell-v11/);
   assert.match(serviceWorker, /request\.mode === "navigate"/);
   assert.match(serviceWorker, /if \(url\.search\)/);
   assert.doesNotMatch(serviceWorker.match(/self\.addEventListener\("install"[\s\S]*?\n\}\);/)?.[0] ?? "", /skipWaiting/);

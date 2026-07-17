@@ -33,6 +33,19 @@ function isConflict(error: unknown): boolean {
   return typeof error === "object" && error !== null && "code" in error && Number((error as { code?: unknown }).code) === 409;
 }
 
+function isGuestSessionError(error: unknown): boolean {
+  if (typeof error !== "object" || error === null) return false;
+  const candidate = error as { code?: unknown; message?: unknown; type?: unknown };
+  const message = String(candidate.message || "").toLowerCase();
+  return Number(candidate.code) === 401
+    || String(candidate.type || "").includes("user_unauthorized")
+    || (message.includes("role: guests") && message.includes("missing scopes"));
+}
+
+function clearFallbackSession(): void {
+  if (typeof window !== "undefined") window.localStorage.removeItem("cookieFallback");
+}
+
 const META_PREFIX = "__li_meta_v1__:";
 const META_CHUNK_SIZE = 220;
 
@@ -112,23 +125,34 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
   try {
     const user = await account.get();
     return { id: user.$id, name: user.name || user.email.split("@")[0], email: user.email };
-  } catch { return null; }
+  } catch (error) {
+    if (isGuestSessionError(error)) clearFallbackSession();
+    return null;
+  }
 }
 
 export async function signIn(email: string, password: string): Promise<AuthUser> {
+  // A fallback cookie from the pre-regional endpoint can make Appwrite treat a
+  // returning browser as a guest. Start login with a clean session handshake.
+  clearFallbackSession();
   await account.createEmailPasswordSession(email, password);
   const user = await account.get();
   return { id: user.$id, name: user.name || email.split("@")[0], email };
 }
 
 export async function signUp(name: string, email: string, password: string): Promise<AuthUser> {
+  clearFallbackSession();
   const user = await account.create({ userId: ID.unique(), email, password, name });
   await account.createEmailPasswordSession(email, password);
   return { id: user.$id, name: user.name || name, email };
 }
 
 export async function signOut(): Promise<void> {
-  if (isAppwriteConfigured) await account.deleteSession({ sessionId: "current" });
+  try {
+    if (isAppwriteConfigured) await account.deleteSession({ sessionId: "current" });
+  } finally {
+    clearFallbackSession();
+  }
 }
 
 export async function requestPasswordReset(email: string): Promise<void> {
@@ -383,14 +407,23 @@ export async function listLifeThreads(userId: string): Promise<LifeThread[]> {
 
 export async function askOrExtract(route: "extract" | "ask" | "today-brief" | "regroup-thread", payload: Record<string, unknown>) {
   if (!appwriteConfig.aiFunctionId) throw new Error("AI function is not configured.");
-  const execution = await appwriteFunctions.createExecution({
-    functionId: appwriteConfig.aiFunctionId,
-    body: JSON.stringify({ route, ...payload }),
-    async: false,
-    xpath: `/${route}`,
-    method: ExecutionMethod.POST,
-    headers: { "content-type": "application/json" },
-  });
+  let execution;
+  try {
+    execution = await appwriteFunctions.createExecution({
+      functionId: appwriteConfig.aiFunctionId,
+      body: JSON.stringify({ route, ...payload }),
+      async: false,
+      xpath: `/${route}`,
+      method: ExecutionMethod.POST,
+      headers: { "content-type": "application/json" },
+    });
+  } catch (error) {
+    if (isGuestSessionError(error)) {
+      clearFallbackSession();
+      throw new Error("Your secure session expired. Log in again to reconnect LifeInbox AI.");
+    }
+    throw error;
+  }
   let response: Record<string, unknown> = {};
   if (execution.responseBody) {
     try { response = JSON.parse(execution.responseBody) as Record<string, unknown>; }
