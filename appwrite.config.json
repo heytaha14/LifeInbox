@@ -1,6 +1,6 @@
 {
   "projectId": "6a572c3f0008220bd0cf",
-  "endpoint": "https://cloud.appwrite.io/v1",
+  "endpoint": "https://fra.cloud.appwrite.io/v1",
   "functions": [
     {
       "$id": "ai-orchestrator",

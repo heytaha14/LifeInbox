@@ -2,13 +2,13 @@
 
 ## Boundaries
 
-The browser owns presentation, Appwrite session state, explicitly user-approved writes, and direct permissioned file uploads. It never receives an administrative API key or an OpenAI key.
+The browser owns presentation and explicitly user-approved writes. A same-origin gateway keeps the Appwrite session in an `HttpOnly`, `Secure`, `SameSite=Lax` cookie and forwards only allowlisted Appwrite account, database, storage, and function routes. The browser never receives the session token, an administrative API key, or an OpenAI key.
 
 Appwrite owns identity, durable records, object storage, row/file authorization, server-side AI access, quotas, retention, and operational aggregation.
 
 ## Request flow
 
-1. The user signs in with an Appwrite email/password session.
+1. The user signs in through `/api/session`; the gateway verifies the new Appwrite email/password session before setting its same-origin cookie.
 2. A capture is uploaded directly to the permissioned `inbox-files` bucket when it contains a file.
 3. The browser executes `ai-orchestrator/extract` with text plus safe metadata, including the capture ID, file ID, user's local date, and time zone for explicit relative-date resolution.
 4. The orchestrator checks the authenticated Appwrite user header, binds any file ID to an owner-matched capture document and file permission, and enforces the user's daily capture and shared AI token budgets.
@@ -35,7 +35,7 @@ Appwrite owns identity, durable records, object storage, row/file authorization,
 
 ## Experience layers
 
-- **Public landing page:** a minimal white, graphite, and lime product story with an interactive capture proof, feature bento, privacy section, and clear demo/sign-up paths.
+- **Public landing page:** a minimal white, graphite, and violet product story with an interactive capture proof, feature bento, privacy section, and clear sign-up/login paths.
 - **Authenticated workspace:** an iOS-inspired shell with Today, Inbox, permanent Notes, Life Threads, Ask, a floating desktop sidebar, compact tablet navigation, phone bottom navigation, touch-sized controls, safe-area handling, and full-screen mobile capture/review.
 - **Installable PWA:** standalone display, custom icons, offline app-shell fallback, and platform-specific installation guidance. Live Appwrite persistence and OpenAI processing still require a connection.
 - **Portable report:** a designed multi-page PDF with a cover, summary metrics, grouped Life Threads, item status and confidence, and page numbers.

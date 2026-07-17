@@ -50,7 +50,7 @@ We also hardened the Responses API boundary for cases where a model refuses, ret
 - Grounded Ask answers with clickable item-level citations
 - Active and completed inbox filtering with reversible completion
 - Designed branded PDF export instead of a raw JSON dump
-- Real Appwrite authentication, per-user persistence, and isolated demo data
+- Real Appwrite authentication and per-user persistence with no seeded demo workspace
 - Minimal iOS-inspired responsive UI and installable PWA behavior
 - Private-by-design server-only AI keys, transparent 30-day upload cleanup, export, and full deletion
 
@@ -64,8 +64,8 @@ Next steps include opt-in calendar and email connectors, richer recurring remind
 
 ## Judge quick test
 
-1. Open the live project and choose **Explore the demo** to inspect the responsive workspace without credentials.
-2. Create a temporary account to verify that a real workspace begins empty.
+1. Open the live project and create a temporary account.
+2. Verify that the real workspace begins empty.
 3. Capture: `Renew my insurance Friday at 5 PM, email the receipt to Maya, and book a dentist appointment next Tuesday.`
 4. Confirm three editable review tabs, inspect confidence/source evidence, then approve the batch.
 5. Refresh and confirm that the items persist. Complete one and find it with the **Completed** filter.
@@ -85,7 +85,7 @@ Show the white/lime landing page, capture proof graphic, and supported input typ
 
 ### 0:18–0:35 — real empty account
 
-> A new account starts empty. Demo data stays in explicit demo mode, while every real row and file is permissioned to the signed-in Appwrite user.
+> A new account starts empty. LifeInbox has no demo workspace: every row and file belongs to the signed-in Appwrite user.
 
 Open a prepared temporary account and show the empty Today screen.
 

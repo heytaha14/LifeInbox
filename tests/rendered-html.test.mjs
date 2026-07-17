@@ -30,8 +30,11 @@ test("server-renders the finished LifeInbox product", async () => {
 });
 
 test("keeps Appwrite and secrets behind explicit boundaries", async () => {
-  const [client, setup, orchestrator, ops, layout] = await Promise.all([
+  const [client, server, sessionRoute, proxyRoute, setup, orchestrator, ops, layout] = await Promise.all([
     readFile(new URL("../lib/appwrite.ts", import.meta.url), "utf8"),
+    readFile(new URL("../lib/appwrite-server.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/session/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/appwrite/v1/[...path]/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../scripts/setup-appwrite.mjs", import.meta.url), "utf8"),
     readFile(new URL("../functions/ai-orchestrator/src/main.js", import.meta.url), "utf8"),
     readFile(new URL("../functions/ops/src/main.js", import.meta.url), "utf8"),
@@ -41,10 +44,22 @@ test("keeps Appwrite and secrets behind explicit boundaries", async () => {
   assert.match(client, /https:\/\/fra\.cloud\.appwrite\.io\/v1/);
   assert.match(client, /6a572c3f0008220bd0cf/);
   assert.match(client, /NEXT_PUBLIC_APPWRITE_AI_FUNCTION_ID \|\| "ai-orchestrator"/);
-  assert.match(client, /clearFallbackSession/);
+  assert.match(client, /window\.location\.origin\}\/api\/appwrite\/v1/);
+  assert.match(client, /fetch\("\/api\/session"/);
+  assert.match(client, /clearServerSession/);
   assert.match(client, /role: guests/);
   assert.match(client, /secure session expired/);
   assert.doesNotMatch(client, /OPENAI_API_KEY|APPWRITE_API_KEY/);
+  assert.match(server, /lifeinbox_session/);
+  assert.match(server, /HttpOnly/);
+  assert.match(server, /SameSite=Lax/);
+  assert.match(server, /x-appwrite-session/i);
+  assert.match(sessionRoute, /x-fallback-cookies/);
+  assert.match(sessionRoute, /accountResponse/);
+  assert.match(sessionRoute, /sessionCookie\(session/);
+  assert.match(proxyRoute, /account\|databases\|storage\|functions/);
+  assert.match(proxyRoute, /appwriteHeaders\(readSessionCookie\(request\)\)/);
+  assert.doesNotMatch(`${server}\n${sessionRoute}\n${proxyRoute}`, /APPWRITE_API_KEY|OPENAI_API_KEY/);
   assert.match(setup, /APPWRITE_API_KEY/);
   assert.match(orchestrator, /x-appwrite-user-id/i);
   assert.match(orchestrator, /x-appwrite-key/i);
@@ -58,14 +73,15 @@ test("keeps Appwrite and secrets behind explicit boundaries", async () => {
   await access(new URL("appwrite.config.json", root));
 });
 
-test("keeps real workspaces free of demo state and persists production flows", async () => {
+test("ships authenticated workspaces without demo state and persists production flows", async () => {
   const [app, client, orchestrator] = await Promise.all([
     readFile(new URL("../app/lifeinbox-app.tsx", import.meta.url), "utf8"),
     readFile(new URL("../lib/appwrite.ts", import.meta.url), "utf8"),
     readFile(new URL("../functions/ai-orchestrator/src/main.js", import.meta.url), "utf8"),
   ]);
   assert.match(app, /useState<LifeItem\[]>\(\[\]\)/);
-  assert.match(app, /setItems\(seedItems\); setCustomThreads\(seedThreads\)/);
+  assert.doesNotMatch(app, /enterDemo|resetDemo|seedItems|seedThreads|Demo mode|sample data/i);
+  assert.doesNotMatch(client, /demo@lifeinbox/i);
   assert.doesNotMatch(app, /items\.length \+ 13/);
   assert.match(app, /deleteLifeThread/);
   assert.match(app, /status: "completed"/);
@@ -266,11 +282,12 @@ test("conservatively separates compound fallback captures", async () => {
 });
 
 test("generates a real multi-page PDF document", async () => {
-  const [{ createLifeInboxPdf }, { seedItems }] = await Promise.all([
-    import(new URL("../lib/pdf-export.ts", import.meta.url)),
-    import(new URL("../lib/lifeinbox.ts", import.meta.url)),
-  ]);
-  const items = Array.from({ length: 6 }, (_, index) => seedItems.map((item) => ({ ...item, id: `${item.id}-${index}`, summary: `${item.summary} ${"Verified context. ".repeat(8)}` }))).flat();
+  const { createLifeInboxPdf } = await import(new URL("../lib/pdf-export.ts", import.meta.url));
+  const fixture = [
+    { id: "task", type: "task", title: "Renew insurance", summary: "Compare the quote and confirm the renewal.", priority: "high", confidence: 96, source: "pdf", createdAt: "2026-07-15T08:14:00Z", status: "today", dueLabel: "Today" },
+    { id: "note", type: "note", title: "Venue access", summary: "Use the east entrance.", content: "Use the east entrance after 6 PM and ask reception for Maya.", priority: "low", confidence: 98, source: "text", createdAt: "2026-07-15T09:00:00Z", status: "inbox" },
+  ];
+  const items = Array.from({ length: 15 }, (_, index) => fixture.map((item) => ({ ...item, id: `${item.id}-${index}`, summary: `${item.summary} ${"Verified context. ".repeat(8)}` }))).flat();
   const pdf = createLifeInboxPdf(items, { ownerName: "Test User", generatedAt: new Date("2026-07-15T00:00:00Z") });
   const bytes = pdf.output("arraybuffer");
   assert.ok(bytes.byteLength > 10_000);
@@ -288,7 +305,7 @@ test("ships a complete installable PWA", async () => {
   assert.equal(parsed.display, "standalone");
   assert.ok(parsed.icons.some((icon) => icon.sizes === "192x192"));
   assert.ok(parsed.icons.some((icon) => icon.sizes === "512x512" && icon.purpose === "maskable"));
-  assert.match(serviceWorker, /lifeinbox-shell-v11/);
+  assert.match(serviceWorker, /lifeinbox-shell-v12/);
   assert.match(serviceWorker, /request\.mode === "navigate"/);
   assert.match(serviceWorker, /if \(url\.search\)/);
   assert.doesNotMatch(serviceWorker.match(/self\.addEventListener\("install"[\s\S]*?\n\}\);/)?.[0] ?? "", /skipWaiting/);

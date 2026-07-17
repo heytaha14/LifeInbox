@@ -14,7 +14,7 @@ import {
   runOps, saveCaptureRecord, saveLifeItem, saveLifeThread, savePreferences, signIn, signOut, signUp, updateCaptureRecord, updateLifeItem,
   updateLifeThread, updateProfileName, uploadCaptureFile, type AuthUser,
 } from "@/lib/appwrite";
-import { makeDrafts, makeNoteDraft, seedItems, seedThreads, sortForFocus, type ItemType, type LifeItem, type LifeThread } from "@/lib/lifeinbox";
+import { makeDrafts, makeNoteDraft, sortForFocus, type ItemType, type LifeItem, type LifeThread } from "@/lib/lifeinbox";
 import { CommandCenter, FocusSession, NoteToActionModal, type LifeInboxView } from "./lifeinbox-power-tools";
 import { hasActiveOverlayDialog, useOverlayDialog } from "./use-overlay-dialog";
 
@@ -33,13 +33,13 @@ function Brand({ compact = false }: { compact?: boolean }) {
   return <div className="brand"><span className="brand-mark"><span /></span>{!compact && <span>LifeInbox</span>}</div>;
 }
 
-function Landing({ onAuth, onDemo }: { onAuth: (mode: AuthMode) => void; onDemo: () => void }) {
+function Landing({ onAuth }: { onAuth: (mode: AuthMode) => void }) {
   const root = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const ctx = gsap.context(() => {
       gsap.fromTo("[data-hero]", { y: 22, opacity: 0 }, { y: 0, opacity: 1, duration: .75, stagger: .08, ease: "power3.out" });
-      gsap.fromTo("[data-demo]", { y: 30, opacity: 0, rotateX: 4 }, { y: 0, opacity: 1, rotateX: 0, duration: .9, delay: .25, ease: "power3.out" });
+      gsap.fromTo("[data-preview]", { y: 30, opacity: 0, rotateX: 4 }, { y: 0, opacity: 1, rotateX: 0, duration: .9, delay: .25, ease: "power3.out" });
     }, root);
     return () => ctx.revert();
   }, []);
@@ -58,10 +58,10 @@ function Landing({ onAuth, onDemo }: { onAuth: (mode: AuthMode) => void; onDemo:
           <div className="eyebrow" data-hero><Sparkles size={14} /> Built with GPT-5.6 for OpenAI Build Week</div>
           <h1 data-hero>Drop it in.<br /><em>LifeInbox handles the rest.</em></h1>
           <p data-hero>A private AI workspace that captures anything, finds it instantly, and turns the right information into a calm plan for what to do next.</p>
-          <div className="hero-actions" data-hero><button className="button button-large" onClick={() => onAuth("signup")}>Start capturing free <ArrowRight size={17} /></button><button className="button button-large button-ghost" onClick={onDemo}>See it in action</button></div>
+          <div className="hero-actions" data-hero><button className="button button-large" onClick={() => onAuth("signup")}>Start capturing free <ArrowRight size={17} /></button><a className="button button-large button-ghost" href="#intelligence">See how it works</a></div>
           <div className="hero-trust" data-hero><span><ShieldCheck size={14} /> Private by design</span><span><TimerReset size={14} /> Smart Focus built in</span><span><Zap size={14} /> Powered by GPT-5.6</span></div>
 
-          <div className="hero-product" data-demo aria-label="LifeInbox smart capture preview">
+          <div className="hero-product" data-preview aria-label="LifeInbox smart capture preview">
             <div className="hero-window-bar"><Brand /><span>Smart capture</span><i /><i /><i /></div>
             <div className="hero-capture-grid">
               <section className="hero-drop-card">
@@ -76,7 +76,7 @@ function Landing({ onAuth, onDemo }: { onAuth: (mode: AuthMode) => void; onDemo:
                 <div><span className="type-icon gold"><CircleDollarSign size={15} /></span><p><b>Pay Aanya ₹1,240</b><small>Tomorrow · Money</small></p><strong>94%</strong></div>
               </section>
             </div>
-            <div className="hero-window-foot"><span><LockKeyhole size={13} /> Your capture stays permissioned to you</span><button onClick={onDemo}>Open demo <ArrowRight size={14} /></button></div>
+            <div className="hero-window-foot"><span><LockKeyhole size={13} /> Your capture stays permissioned to you</span><button onClick={() => onAuth("signup")}>Create workspace <ArrowRight size={14} /></button></div>
           </div>
         </section>
 
@@ -124,14 +124,14 @@ function Landing({ onAuth, onDemo }: { onAuth: (mode: AuthMode) => void; onDemo:
           <div className="privacy-card"><div className="privacy-lock"><LockKeyhole size={38} /><span /><span /><span /></div><strong>Your workspace</strong><p>Protected by Appwrite permissions</p></div>
         </section>
 
-        <section className="final-cta"><div className="hero-app-icon"><span className="brand-mark"><span /></span></div><span className="eyebrow">Your personal life operating system</span><h2>Capture less.<br />Know more. Do what matters.</h2><p>LifeInbox keeps the information, connects the context, and gives you one calm next move.</p><div className="hero-actions"><button className="button button-large" onClick={() => onAuth("signup")}>Create your LifeInbox <ArrowRight size={17} /></button><button className="button button-large button-ghost" onClick={onDemo}>Explore the superapp</button></div></section>
+        <section className="final-cta"><div className="hero-app-icon"><span className="brand-mark"><span /></span></div><span className="eyebrow">Your personal life operating system</span><h2>Capture less.<br />Know more. Do what matters.</h2><p>LifeInbox keeps the information, connects the context, and gives you one calm next move.</p><div className="hero-actions"><button className="button button-large" onClick={() => onAuth("signup")}>Create your LifeInbox <ArrowRight size={17} /></button><button className="button button-large button-ghost" onClick={() => onAuth("signin")}>Log in to your workspace</button></div></section>
       </main>
       <footer><Brand /><p>© 2026 LifeInbox · Built with Codex and GPT-5.6</p><div><a href="#intelligence">Intelligence</a><a href="#privacy">Privacy</a><button onClick={() => onAuth("signin")}>Log in</button></div></footer>
     </div>
   );
 }
 
-function AuthScreen({ initialMode, onBack, onSuccess, onDemo }: { initialMode: AuthMode; onBack: () => void; onSuccess: (user: AuthUser) => void; onDemo: () => void }) {
+function AuthScreen({ initialMode, onBack, onSuccess }: { initialMode: AuthMode; onBack: () => void; onSuccess: (user: AuthUser) => void }) {
   const [mode, setMode] = useState(initialMode);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -142,7 +142,7 @@ function AuthScreen({ initialMode, onBack, onSuccess, onDemo }: { initialMode: A
 
   async function submit(event: FormEvent) {
     event.preventDefault(); setError("");
-    if (!isAppwriteConfigured) { setError("Appwrite is not connected yet. Use the demo now, or add the environment values to enable real accounts."); return; }
+    if (!isAppwriteConfigured) { setError("LifeInbox authentication is temporarily unavailable."); return; }
     try {
       setLoading(true);
       const user = mode === "signup" ? await signUp(name, email, password) : await signIn(email, password);
@@ -178,7 +178,6 @@ function AuthScreen({ initialMode, onBack, onSuccess, onDemo }: { initialMode: A
             {error && <div className="auth-error"><HelpCircle size={16} /> {error}</div>}
             <button className="button button-full button-large" disabled={loading}>{loading ? <LoaderCircle className="spin" size={18} /> : null}{mode === "signup" ? "Create free account" : "Log in"}<ArrowRight size={17} /></button>
           </form>
-          <button className="demo-entry" onClick={onDemo}><Sparkles size={15} /> Explore with sample data instead</button>
           <p className="auth-switch">{mode === "signup" ? "Already have an account?" : "New to LifeInbox?"} <button onClick={() => { setMode(mode === "signup" ? "signin" : "signup"); setError(""); }}>{mode === "signup" ? "Log in" : "Create one"}</button></p>
           <small>By continuing, you agree to the Terms and Privacy Policy.</small>
         </section>
@@ -193,7 +192,7 @@ function RecoveryScreen({ userId, secret, onDone }: { userId: string; secret: st
   return <div className="auth-page"><div className="auth-brand"><Brand /></div><div className="recovery-wrap"><section className="auth-card"><span className="auth-kicker">Fresh start</span><h2>Choose a new password.</h2><p>Use at least eight characters you haven&apos;t used here before.</p><form onSubmit={submit}><label>New password<input type="password" minLength={8} value={password} onChange={(event) => setPassword(event.target.value)} required /></label><label>Confirm password<input type="password" minLength={8} value={confirm} onChange={(event) => setConfirm(event.target.value)} required /></label>{error && <div className="auth-error"><HelpCircle size={16} /> {error}</div>}<button className="button button-full button-large" disabled={loading}>{loading ? <LoaderCircle className="spin" size={18} /> : <Check size={18} />} Reset password</button></form></section></div></div>;
 }
 
-function Sidebar({ view, setView, user, demo, inboxCount, noteCount, onCapture, onLogout }: { view: View; setView: (v: View) => void; user: AuthUser; demo: boolean; inboxCount: number; noteCount: number; onCapture: () => void; onLogout: () => void }) {
+function Sidebar({ view, setView, user, inboxCount, noteCount, onCapture, onLogout }: { view: View; setView: (v: View) => void; user: AuthUser; inboxCount: number; noteCount: number; onCapture: () => void; onLogout: () => void }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [mobileLayout, setMobileLayout] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
@@ -232,9 +231,8 @@ function Sidebar({ view, setView, user, demo, inboxCount, noteCount, onCapture, 
         return <button key={link.id} className={view === link.id ? "active" : ""} aria-label={link.label} aria-current={view === link.id ? "page" : undefined} onClick={() => choose(link.id)}><link.icon size={18} /><span>{link.label}</span>{link.badge && <i aria-hidden="true">{link.badge}</i>}</button>;
       })}</div>)}</nav>
       <div className="sidebar-bottom">
-        {demo && <div className="demo-mode"><Sparkles size={14} /><div><b>Demo mode</b><small>Sample data only</small></div></div>}
         <button className={view === "settings" ? "active" : ""} aria-label="Settings" aria-current={view === "settings" ? "page" : undefined} onClick={() => choose("settings")}><Settings size={18} /><span>Settings</span></button>
-        <div className="user-menu"><span>{user.name.charAt(0).toUpperCase()}</span><div><b>{user.name}</b><small>{demo ? "Free demo" : user.email}</small></div><button onClick={logoutFromMenu} aria-label="Log out"><LogOut size={16} /></button></div>
+        <div className="user-menu"><span>{user.name.charAt(0).toUpperCase()}</span><div><b>{user.name}</b><small>{user.email}</small></div><button onClick={logoutFromMenu} aria-label="Log out"><LogOut size={16} /></button></div>
       </div>
     </aside>
     <nav className="mobile-tabbar" aria-label="Mobile app navigation">
@@ -378,24 +376,22 @@ function BrainPlan({ actions, items, onOpen }: { actions: BrainAction[]; items: 
   })}</div>;
 }
 
-function AskView({ items, demo, onOpen }: { items: LifeItem[]; demo: boolean; onOpen: (item: LifeItem) => void }) {
+function AskView({ items, onOpen }: { items: LifeItem[]; onOpen: (item: LifeItem) => void }) {
   const [messages, setMessages] = useState<AskMessage[]>([{ role: "assistant", text: "Ask me anything you’ve saved. I’ll reason across your tasks, dates, payments, and plans—then tell you the clearest next move." }]);
   const [input, setInput] = useState(""); const [thinking, setThinking] = useState(false);
   async function ask(question: string) {
     if (!question.trim()) return; setMessages((m) => [...m, { role: "user", text: question }]); setInput(""); setThinking(true);
-    let answer = items.length ? `Your most important saved items are: ${items.filter((item) => item.status !== "done").slice(0, 3).map((item) => item.title).join(", ")}.` : "Your LifeInbox is empty. Capture your first item and I can answer questions grounded in it.";
-    let citations = items.filter((item) => item.status !== "done").slice(0, 3).map((item) => item.id);
-    let nextActions: BrainAction[] = items.filter((item) => item.status !== "done").slice(0, 3).map((item) => ({ title: item.title, why: item.dueLabel || "This is one of your highest-priority open items.", itemId: item.id }));
+    let answer = "";
+    let citations: string[] = [];
+    let nextActions: BrainAction[] = [];
     let insights: string[] = [];
     try {
-      if (!demo) {
-        const now = new Date();
-        const result = await askOrExtract("ask", { question, localDate: now.toLocaleDateString("en-CA"), timezone: Intl.DateTimeFormat().resolvedOptions().timeZone });
-        if (result.answer) answer = String(result.answer);
-        citations = Array.isArray(result.citations) ? result.citations.map(String) : [];
-        nextActions = parseBrainActions(result.nextActions);
-        insights = Array.isArray(result.insights) ? result.insights.map(String).filter(Boolean) : [];
-      }
+      const now = new Date();
+      const result = await askOrExtract("ask", { question, localDate: now.toLocaleDateString("en-CA"), timezone: Intl.DateTimeFormat().resolvedOptions().timeZone });
+      answer = String(result.answer || "I could not find enough saved context to answer that.");
+      citations = Array.isArray(result.citations) ? result.citations.map(String) : [];
+      nextActions = parseBrainActions(result.nextActions);
+      insights = Array.isArray(result.insights) ? result.insights.map(String).filter(Boolean) : [];
     } catch (caught) {
       answer = caught instanceof Error ? `I couldn’t complete that request: ${caught.message}` : "I couldn’t complete that request right now. Please try again.";
       citations = [];
@@ -414,11 +410,11 @@ function AskView({ items, demo, onOpen }: { items: LifeItem[]; demo: boolean; on
   </div>;
 }
 
-function SettingsView({ demo, user, items, onLogout, onToast, onReset }: { demo: boolean; user: AuthUser; items: LifeItem[]; onLogout: () => void; onToast: (message: string) => void; onReset: () => void }) {
+function SettingsView({ user, items, onLogout, onToast }: { user: AuthUser; items: LifeItem[]; onLogout: () => void; onToast: (message: string) => void }) {
   const [section, setSection] = useState<"profile" | "usage" | "privacy" | "notifications">("profile");
   const [briefing, setBriefing] = useState(true); const [review, setReview] = useState(true); const [alerts, setAlerts] = useState(true);
   const [editingName, setEditingName] = useState(false); const [displayName, setDisplayName] = useState(user.name); const [exporting, setExporting] = useState(false);
-  async function persistPrefs() { if (!demo && isAppwriteConfigured) await savePreferences({ morningBriefing: briefing, alwaysReview: review, reminders: alerts }); onToast("Preferences saved"); }
+  async function persistPrefs() { if (isAppwriteConfigured) await savePreferences({ morningBriefing: briefing, alwaysReview: review, reminders: alerts }); onToast("Preferences saved"); }
   async function exportData() {
     if (exporting) return;
     setExporting(true);
@@ -432,11 +428,11 @@ function SettingsView({ demo, user, items, onLogout, onToast, onReset }: { demo:
       setExporting(false);
     }
   }
-  async function deleteWorkspace() { if (!window.confirm("Delete this LifeInbox workspace and all of its data? This cannot be undone.")) return; if (demo) { onReset(); return; } const result = await runOps("delete-account"); if (result?.deleted) { onToast("Workspace deleted"); onLogout(); } else onToast("Account deletion needs the Ops function to be deployed"); }
+  async function deleteWorkspace() { if (!window.confirm("Delete this LifeInbox workspace and all of its data? This cannot be undone.")) return; const result = await runOps("delete-account"); if (result?.deleted) { onToast("Workspace deleted"); onLogout(); } else onToast("Account deletion needs the Ops function to be deployed"); }
   const nav = [{ id: "profile", label: "Profile", icon: User }, { id: "usage", label: "Usage & plan", icon: Zap }, { id: "privacy", label: "Privacy", icon: ShieldCheck }, { id: "notifications", label: "Notifications", icon: Bell }] as const;
   return <div className="view settings-view"><div className="view-heading" data-animate><span className="date-label">YOUR WORKSPACE</span><h1>Settings</h1><p>Manage your preferences, usage, privacy, and plan.</p></div>
     <div className="settings-layout" data-animate><nav>{nav.map((entry) => <button key={entry.id} className={section === entry.id ? "active" : ""} onClick={() => setSection(entry.id)}><entry.icon size={16} /> {entry.label}</button>)}</nav><div className="settings-content">
-      {section === "profile" && <><section className="settings-section"><div><h2>Profile</h2><p>Your LifeInbox identity and account details.</p></div><div className="profile-row"><span>{displayName.slice(0, 2).toUpperCase()}</span><div>{editingName ? <input className="profile-input" value={displayName} onChange={(event) => setDisplayName(event.target.value)} /> : <b>{displayName}</b>}<small>{user.email}</small></div><button onClick={() => { if (editingName) { if (!demo && isAppwriteConfigured) void updateProfileName(displayName); onToast("Profile name updated"); } setEditingName(!editingName); }}>{editingName ? "Save" : "Edit profile"}</button></div></section><section className="settings-section"><div><h2>Capture preferences</h2><p>Choose how LifeInbox handles extracted information.</p></div><SettingToggle title="Always review before save" text="Open the review screen even when confidence is high." checked={review} setChecked={setReview} /><SettingToggle title="Morning briefing" text="Prepare a concise daily briefing from relevant items." checked={briefing} setChecked={setBriefing} /><button className="button button-small settings-save" onClick={() => void persistPrefs()}>Save preferences</button></section></>}
+      {section === "profile" && <><section className="settings-section"><div><h2>Profile</h2><p>Your LifeInbox identity and account details.</p></div><div className="profile-row"><span>{displayName.slice(0, 2).toUpperCase()}</span><div>{editingName ? <input className="profile-input" value={displayName} onChange={(event) => setDisplayName(event.target.value)} /> : <b>{displayName}</b>}<small>{user.email}</small></div><button onClick={() => { if (editingName) { if (isAppwriteConfigured) void updateProfileName(displayName); onToast("Profile name updated"); } setEditingName(!editingName); }}>{editingName ? "Save" : "Edit profile"}</button></div></section><section className="settings-section"><div><h2>Capture preferences</h2><p>Choose how LifeInbox handles extracted information.</p></div><SettingToggle title="Always review before save" text="Open the review screen even when confidence is high." checked={review} setChecked={setReview} /><SettingToggle title="Morning briefing" text="Prepare a concise daily briefing from relevant items." checked={briefing} setChecked={setBriefing} /><button className="button button-small settings-save" onClick={() => void persistPrefs()}>Save preferences</button></section></>}
       {section === "usage" && <section className="settings-section"><div><h2>Workspace overview</h2><p>Live totals from the items currently saved in your LifeInbox.</p></div><div className="usage-box"><div><span><b>{items.length}</b> approved items</span><small>{items.filter((item) => item.type !== "note" && item.status !== "done").length} actions still open</small></div><div className="usage-stats"><span><CheckCircle2 size={15} /> {items.filter((item) => item.status === "done").length} completed</span><span><BookOpenText size={15} /> {items.filter((item) => item.type === "note").length} notes</span><span><ImageIcon size={15} /> {items.filter((item) => item.source === "image" || item.source === "pdf").length} files</span><span><Mic size={15} /> {items.filter((item) => item.source === "voice").length} voice</span></div></div><div className="plan-card"><Gift size={20} /><div><b>Build Week edition</b><small>Every core LifeInbox feature is available.</small></div><span>Free</span></div></section>}
       {section === "privacy" && <><section className="settings-section"><div><h2>Privacy & retention</h2><p>See how original uploads and approved information are handled.</p></div><div className="select-setting retention-policy"><div><b>Original uploads</b><small>Files and capture metadata are automatically removed after 30 days. Approved actions and Notes stay until you delete them.</small></div><strong>30 days</strong></div><button className="export-card" onClick={() => void exportData()} disabled={exporting}><span>{exporting ? <LoaderCircle className="spin" size={19} /> : <Download size={19} />}</span><div><b>{exporting ? "Designing your report…" : "Export LifeInbox report"}</b><small>Branded PDF · summaries, priorities, threads, notes, and page numbers</small></div><ArrowRight size={16} /></button></section><section className="settings-section danger-section"><div><h2>Account</h2><p>Manage this session or permanently remove your workspace.</p></div><div><button className="button button-ghost" onClick={onLogout}><LogOut size={15} /> Log out</button><button className="danger-button" onClick={() => void deleteWorkspace()}><Trash2 size={15} /> Delete workspace</button></div></section></>}
       {section === "notifications" && <section className="settings-section"><div><h2>Notifications</h2><p>Choose when LifeInbox gives you a cheerful nudge.</p></div><SettingToggle title="Due-date reminders" text="Get a reminder before high-priority items are due." checked={alerts} setChecked={setAlerts} /><SettingToggle title="Morning briefing" text="Prepare your daily top three every morning." checked={briefing} setChecked={setBriefing} /><button className="button button-small settings-save" onClick={() => void persistPrefs()}>Save notifications</button></section>}
@@ -495,13 +491,13 @@ function CaptureModal({ user, initialIntent, initialThreadName, onClose, onRevie
     try {
       let fileId: string | undefined;
       const captureText = source === "text" ? text.trim() : "";
-      if (isAppwriteConfigured && user.id !== "demo") {
+      if (isAppwriteConfigured) {
         if (file) { const uploaded = await uploadCaptureFile(file, user.id); fileId = uploaded.$id; }
         const capture = await saveCaptureRecord({ source, rawText: captureText, fileId }, user.id);
         captureId = capture.$id;
       }
       let drafts = intent === "note" ? [makeNoteDraft(captureText || file?.name || "New note", source)] : makeDrafts(captureText || file?.name || "New capture", source);
-      if (isAppwriteConfigured && user.id !== "demo") {
+      if (isAppwriteConfigured) {
         setProcessingStage(intent === "note" ? "Creating a faithful note…" : "Separating actions…");
         const now = new Date();
         const result = await askOrExtract("extract", { input: captureText, source, fileId, captureId, fileName: file?.name, mimeType: file?.type, captureIntent: intent, localDate: now.toLocaleDateString("en-CA"), timezone: Intl.DateTimeFormat().resolvedOptions().timeZone });
@@ -512,7 +508,6 @@ function CaptureModal({ user, initialIntent, initialThreadName, onClose, onRevie
         const averageConfidence = Math.round(drafts.reduce((sum, item) => sum + item.confidence, 0) / drafts.length);
         if (captureId) await updateCaptureRecord(captureId, { status: "review", needsReview: Boolean(result.needsReview) || drafts.some((item) => item.confidence < 80 || item.missingFields?.length), confidence: averageConfidence, mode: `${intent}:${String(result.mode || "ai")}`.slice(0, 32) }).catch(() => undefined);
       }
-      else await new Promise((resolve) => window.setTimeout(resolve, 720));
       if (initialThreadName) drafts = drafts.map((draft) => ({ ...draft, threadName: initialThreadName }));
       if (!cancelledRef.current) onReview(drafts, source === "text" ? captureText : source === "voice" ? "Recorded voice note" : "Uploaded file", file?.name, captureId);
     } catch (caught) {
@@ -580,7 +575,7 @@ function ItemDetail({ item, onClose, onDone, onDelete, onSnooze, onTogglePin, on
 
 export function LifeInboxApp() {
   const [screen, setScreen] = useState<"landing" | "auth" | "recovery" | "app">("landing"); const [authMode, setAuthMode] = useState<AuthMode>("signup"); const [recovery, setRecovery] = useState<{ userId: string; secret: string } | null>(null);
-  const [user, setUser] = useState<AuthUser | null>(null); const [demo, setDemo] = useState(false); const [loadingSession, setLoadingSession] = useState(isAppwriteConfigured);
+  const [user, setUser] = useState<AuthUser | null>(null); const [loadingSession, setLoadingSession] = useState(isAppwriteConfigured);
   const [view, setView] = useState<View>("today"); const [items, setItems] = useState<LifeItem[]>([]); const [queries, setQueries] = useState({ inbox: "", notes: "" });
   const [captureOpen, setCaptureOpen] = useState(false); const [captureIntent, setCaptureIntent] = useState<CaptureIntent>("organize"); const [captureThreadName, setCaptureThreadName] = useState<string | undefined>(); const [newThreadOpen, setNewThreadOpen] = useState(false); const [customThreads, setCustomThreads] = useState<LifeThread[]>([]); const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null); const [review, setReview] = useState<{ drafts: LifeItem[]; original: string; fileName?: string; captureId?: string } | null>(null); const [reviewPaused, setReviewPaused] = useState(false); const [selected, setSelected] = useState<LifeItem | null>(null); const [commandOpen, setCommandOpen] = useState(false); const [focusItem, setFocusItem] = useState<LifeItem | null>(null); const [noteActionSource, setNoteActionSource] = useState<LifeItem | null>(null); const [toast, setToast] = useState("");
   const [dailyBriefing, setDailyBriefing] = useState("Your day is clear. Capture anything you want LifeInbox to remember, organize, or turn into a next step.");
@@ -630,7 +625,7 @@ export function LifeInboxApp() {
       setSelected((current) => current && expiredIds.has(current.id) ? { ...current, ...wakePatch } : current);
       setFocusItem((current) => current && expiredIds.has(current.id) ? { ...current, ...wakePatch } : current);
       setToast(expired.length === 1 ? "A snoozed item is ready again" : `${expired.length} snoozed items are ready again`);
-      if (!demo && isAppwriteConfigured && user) {
+      if (isAppwriteConfigured && user) {
         void Promise.all(expired.map((item) => updateLifeItem(item.id, { status: "inbox", snoozedUntil: null, dueLabel: "Ready now" })))
           .catch(() => setToast("Items woke up locally, but Appwrite sync needs attention"));
       }
@@ -658,12 +653,12 @@ export function LifeInboxApp() {
       window.removeEventListener("focus", wakeExpired);
       document.removeEventListener("visibilitychange", wakeWhenVisible);
     };
-  }, [demo, items, screen, user]);
-  useEffect(() => { if (view !== "today" || !user || demo || !isAppwriteConfigured || !items.length) return; const now = new Date(); void askOrExtract("today-brief", { localDate: now.toLocaleDateString("en-CA"), timezone: Intl.DateTimeFormat().resolvedOptions().timeZone }).then((result) => { if (result.briefing) setDailyBriefing(String(result.briefing)); }).catch(() => setDailyBriefing("Your items are safe, but the AI briefing is temporarily unavailable.")); }, [view, user, demo, briefingSignature, items.length]);
+  }, [items, screen, user]);
+  useEffect(() => { if (view !== "today" || !user || !isAppwriteConfigured || !items.length) return; const now = new Date(); void askOrExtract("today-brief", { localDate: now.toLocaleDateString("en-CA"), timezone: Intl.DateTimeFormat().resolvedOptions().timeZone }).then((result) => { if (result.briefing) setDailyBriefing(String(result.briefing)); }).catch(() => setDailyBriefing("Your items are safe, but the AI briefing is temporarily unavailable.")); }, [view, user, briefingSignature, items.length]);
 
   const threads = useMemo(() => customThreads.map((thread) => ({ ...thread, itemIds: [...new Set([...thread.itemIds, ...items.filter((item) => item.threadId === thread.id || (!item.threadId && item.threadName?.toLowerCase() === thread.name.toLowerCase())).map((item) => item.id)])] })), [items, customThreads]);
   async function openRealWorkspace(nextUser: AuthUser) {
-    wakingSnoozes.current.clear(); setDemo(false); setUser(nextUser); setItems([]); setCustomThreads([]); setSelectedThreadId(null); setReview(null); setReviewPaused(false); setDailyBriefing("Your day is clear. Capture anything you want LifeInbox to remember, organize, or turn into a next step."); setScreen("app");
+    wakingSnoozes.current.clear(); setUser(nextUser); setItems([]); setCustomThreads([]); setSelectedThreadId(null); setReview(null); setReviewPaused(false); setDailyBriefing("Your day is clear. Capture anything you want LifeInbox to remember, organize, or turn into a next step."); setScreen("app");
     try {
       const [remote, remoteThreads] = await Promise.all([listLifeItems(nextUser.id), listLifeThreads(nextUser.id)]);
       const now = Date.now();
@@ -675,8 +670,7 @@ export function LifeInboxApp() {
     }
     catch { setToast("Your account opened, but Appwrite sync needs attention."); }
   }
-  function enterDemo() { wakingSnoozes.current.clear(); setDemo(true); setItems(seedItems); setCustomThreads(seedThreads); setSelectedThreadId(null); setReview(null); setReviewPaused(false); setDailyBriefing("Renew your car insurance before 5 PM. Your Goa flight check-in opens tomorrow, and there’s one payment to settle this week."); setUser({ id: "demo", name: "Taha Ahmed", email: "demo@lifeinbox.app" }); setScreen("app"); }
-  async function logout() { try { if (!demo) await signOut(); } catch {} wakingSnoozes.current.clear(); setUser(null); setDemo(false); setItems([]); setCustomThreads([]); setSelectedThreadId(null); setReview(null); setReviewPaused(false); setScreen("landing"); setView("today"); }
+  async function logout() { try { await signOut(); } catch {} wakingSnoozes.current.clear(); setUser(null); setItems([]); setCustomThreads([]); setSelectedThreadId(null); setReview(null); setReviewPaused(false); setScreen("landing"); setView("today"); }
   function updateLocalItem(id: string, patch: Partial<LifeItem>) {
     setItems((all) => all.map((item) => item.id === id ? { ...item, ...patch } : item));
     setSelected((current) => current?.id === id ? { ...current, ...patch } : current);
@@ -688,7 +682,7 @@ export function LifeInboxApp() {
     const status = current.status === "done" ? "inbox" : "done";
     updateLocalItem(id, { status, snoozedUntil: undefined });
     setToast(status === "done" ? "Nice! Item completed" : "Item moved back to the inbox");
-    if (!demo && isAppwriteConfigured) {
+    if (isAppwriteConfigured) {
       try { await updateLifeItem(id, { status, snoozedUntil: null }); }
       catch { updateLocalItem(id, current); setToast("That change could not sync. Your previous state was restored."); }
     }
@@ -703,7 +697,7 @@ export function LifeInboxApp() {
     const patch: Partial<LifeItem> = { status: "snoozed", snoozedUntil: wakeAt.toISOString(), dueLabel: "Tomorrow, 9:00 AM" };
     updateLocalItem(id, patch);
     setToast("Moved to Later until tomorrow morning");
-    if (!demo && isAppwriteConfigured) {
+    if (isAppwriteConfigured) {
       try { await updateLifeItem(id, patch); }
       catch { updateLocalItem(id, current); setToast("Snooze could not sync. The item is open again."); }
     }
@@ -714,7 +708,7 @@ export function LifeInboxApp() {
     const pinned = !current.pinned;
     updateLocalItem(id, { pinned });
     setToast(pinned ? "Pinned to Smart Focus" : "Removed from Smart Focus");
-    if (!demo && isAppwriteConfigured) {
+    if (isAppwriteConfigured) {
       try { await updateLifeItem(id, { pinned }); }
       catch { updateLocalItem(id, current); setToast("Pin could not sync. Your previous state was restored."); }
     }
@@ -725,7 +719,7 @@ export function LifeInboxApp() {
     if (!removed) return;
     setItems((all) => all.filter((item) => item.id !== id));
     setToast(removed.type === "note" ? "Deleting note…" : "Removing item…");
-    if (demo || !isAppwriteConfigured) {
+    if (!isAppwriteConfigured) {
       setToast(removed.type === "note" ? "Note deleted" : "Item removed");
       return;
     }
@@ -742,19 +736,18 @@ export function LifeInboxApp() {
       setToast("Deletion could not sync. The item was restored.");
     }
   }
-  async function createThread(thread: LifeThread) { setCustomThreads((all) => [...all, thread]); setNewThreadOpen(false); setToast("New Life Thread created"); if (!demo && isAppwriteConfigured && user) await saveLifeThread(thread, user.id).catch(() => setToast("Thread created locally; sync needs attention")); }
+  async function createThread(thread: LifeThread) { setCustomThreads((all) => [...all, thread]); setNewThreadOpen(false); setToast("New Life Thread created"); if (isAppwriteConfigured && user) await saveLifeThread(thread, user.id).catch(() => setToast("Thread created locally; sync needs attention")); }
   async function removeThread(thread: LifeThread) {
     if (!window.confirm(`Delete “${thread.name}”? Its items will stay in your inbox.`)) return;
     const affected = items.filter((item) => item.threadId === thread.id || item.threadName?.toLowerCase() === thread.name.toLowerCase());
     setCustomThreads((all) => all.filter((entry) => entry.id !== thread.id));
     setItems((all) => all.map((item) => affected.some((entry) => entry.id === item.id) ? { ...item, threadId: undefined, threadName: undefined } : item));
     setToast("Life Thread deleted; its items remain in your inbox");
-    if (!demo && isAppwriteConfigured) {
+    if (isAppwriteConfigured) {
       try { await Promise.all([deleteLifeThread(thread.id), ...affected.map((item) => updateLifeItem(item.id, { threadId: null, threadName: null }))]); }
       catch { setToast("Thread removed locally; Appwrite sync needs attention"); }
     }
   }
-  function resetDemo() { wakingSnoozes.current.clear(); setItems(seedItems); setCustomThreads(seedThreads); setSelectedThreadId(null); setToast("Demo workspace reset"); setView("today"); }
   function beginCapture(intent: CaptureIntent, threadName?: string) {
     if (review) { setReviewPaused(false); setToast("Finish the capture already waiting for review"); return; }
     setCommandOpen(false);
@@ -777,7 +770,7 @@ export function LifeInboxApp() {
   }
   async function createLinkedAction(item: LifeItem) {
     try {
-      if (!demo && isAppwriteConfigured && user) await saveLifeItem(item, user.id);
+      if (isAppwriteConfigured && user) await saveLifeItem(item, user.id);
       setItems((all) => [item, ...all]);
       setView(item.status === "today" ? "today" : "inbox");
       setToast("Linked action created from the note");
@@ -830,7 +823,7 @@ export function LifeInboxApp() {
       return nextItem;
     });
 
-    if (!demo && isAppwriteConfigured && user) {
+    if (isAppwriteConfigured && user) {
       try {
         await Promise.all([
           ...[...touchedThreads.values()].map((thread) => originalThreadIds.has(thread.id) ? updateLifeThread(thread) : saveLifeThread(thread, user.id)),
@@ -859,22 +852,22 @@ export function LifeInboxApp() {
   }
 
   if (loadingSession) return <div className="boot-screen"><Brand /><LoaderCircle className="spin" size={24} /><p>Opening your LifeInbox…</p></div>;
-  if (screen === "landing") return <Landing onAuth={(mode) => { setAuthMode(mode); setScreen("auth"); }} onDemo={enterDemo} />;
-  if (screen === "auth") return <AuthScreen initialMode={authMode} onBack={() => setScreen("landing")} onSuccess={(nextUser) => void openRealWorkspace(nextUser)} onDemo={enterDemo} />;
+  if (screen === "landing") return <Landing onAuth={(mode) => { setAuthMode(mode); setScreen("auth"); }} />;
+  if (screen === "auth") return <AuthScreen initialMode={authMode} onBack={() => setScreen("landing")} onSuccess={(nextUser) => void openRealWorkspace(nextUser)} />;
   if (screen === "recovery" && recovery) return <RecoveryScreen {...recovery} onDone={() => { window.history.replaceState({}, "", window.location.pathname); setAuthMode("signin"); setScreen("auth"); setToast("Password reset. You can log in now."); }} />;
   if (!user) return null;
 
   return (
     <div ref={appRoot} className="app-shell">
-      <Sidebar view={view} setView={setView} user={user} demo={demo} inboxCount={items.filter((item) => item.type !== "note" && item.status !== "done" && item.status !== "snoozed").length} noteCount={items.filter((item) => item.type === "note").length} onCapture={openCapture} onLogout={() => void logout()} />
+      <Sidebar view={view} setView={setView} user={user} inboxCount={items.filter((item) => item.type !== "note" && item.status !== "done" && item.status !== "snoozed").length} noteCount={items.filter((item) => item.type === "note").length} onCapture={openCapture} onLogout={() => void logout()} />
       <main className="app-main">
         <Topbar view={view} onCapture={openCapture} onCommand={openCommandCenter} query={query} setQuery={setActiveQuery} />
         {view === "today" && <TodayView items={items} name={user.name} briefing={dailyBriefing} onDone={toggleDone} onCapture={openCapture} onOpen={setSelected} onFocus={startFocus} onViewAll={() => setView("inbox")} />}
         {view === "inbox" && <InboxView items={items} query={queries.inbox} setQuery={(value) => setQueries((current) => ({ ...current, inbox: value }))} onDone={toggleDone} onOpen={setSelected} onCapture={openCapture} />}
         {view === "notes" && <NotesView items={items} query={queries.notes} setQuery={(value) => setQueries((current) => ({ ...current, notes: value }))} onOpen={setSelected} onNewNote={openNoteCapture} />}
         {view === "threads" && <ThreadsView threads={threads} items={items} selectedThreadId={selectedThreadId} onSelectThread={setSelectedThreadId} onDone={toggleDone} onOpen={setSelected} onDelete={(thread) => void removeThread(thread)} onNewThread={() => { setSelectedThreadId(null); setNewThreadOpen(true); }} onCaptureThread={(thread) => beginCapture("organize", thread.name)} />}
-        {view === "ask" && <AskView items={items} demo={demo} onOpen={setSelected} />}
-        {view === "settings" && <SettingsView demo={demo} user={user} items={items} onLogout={() => void logout()} onToast={setToast} onReset={resetDemo} />}
+        {view === "ask" && <AskView items={items} onOpen={setSelected} />}
+        {view === "settings" && <SettingsView user={user} items={items} onLogout={() => void logout()} onToast={setToast} />}
       </main>
       {captureOpen && <CaptureModal user={user} initialIntent={captureIntent} initialThreadName={captureThreadName} onClose={() => { setCaptureOpen(false); setCaptureThreadName(undefined); }} onReview={(drafts, original, fileName, captureId, warning) => { setReview({ drafts, original, fileName, captureId }); setReviewPaused(false); setCaptureOpen(false); setCaptureThreadName(undefined); if (warning) setToast(warning); }} />}
       {newThreadOpen && <NewThreadModal onClose={() => setNewThreadOpen(false)} onCreate={(thread) => void createThread(thread)} />}

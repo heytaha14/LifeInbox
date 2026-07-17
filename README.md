@@ -23,28 +23,27 @@ Life admin arrives through too many channels: a screenshot of a flight, a voice 
 
 ## Judge quick test
 
-The fastest path requires no credentials and no local setup:
+The fastest path uses a temporary real account:
 
 1. Open the [live project](https://lifeinbox-calm.explorertaha.chatgpt.site/).
-2. Choose **Explore the demo** to inspect the complete responsive UI with sample data.
-3. For the real persistence flow, create a temporary account.
-4. Capture: `Renew my insurance Friday at 5 PM, email the receipt to Maya, and book a dentist appointment next Tuesday.`
-5. Confirm that GPT-5.6 creates three atomic items. Move through the batch tabs and review each item's source excerpt, type, priority, date, confidence, missing fields, and suggested Life Thread.
-6. Approve the batch, refresh the page, and confirm that all three items persist.
-7. Complete one item, choose the **Completed** inbox filter, and confirm that it remains easy to find or restore.
-8. Open **Ask LifeInbox**, ask `What should I do first?`, then click its citation to open the exact supporting item.
-9. Open **New capture**, select **Save as note**, save a useful reference, and confirm it appears in **Notes** after refresh.
-10. Open that note and choose **Turn into action**. Confirm the action retains a backlink to its source note.
-11. Press `Ctrl/Command + K` to open Spotlight, search across items and Life Threads, then launch a 25-minute Focus Session from a result.
-12. Open **Settings → Privacy**, export the designed PDF report, and inspect its cover, summary metrics, grouped items, notes, and page numbers.
-13. Delete the temporary workspace from **Settings → Privacy**.
+2. Create a temporary account. Every new workspace starts empty.
+3. Capture: `Renew my insurance Friday at 5 PM, email the receipt to Maya, and book a dentist appointment next Tuesday.`
+4. Confirm that GPT-5.6 creates three atomic items. Move through the batch tabs and review each item's source excerpt, type, priority, date, confidence, missing fields, and suggested Life Thread.
+5. Approve the batch, refresh the page, and confirm that all three items persist.
+6. Complete one item, choose the **Completed** inbox filter, and confirm that it remains easy to find or restore.
+7. Open **Ask LifeInbox**, ask `What should I do first?`, then click its citation to open the exact supporting item.
+8. Open **New capture**, select **Save as note**, save a useful reference, and confirm it appears in **Notes** after refresh.
+9. Open that note and choose **Turn into action**. Confirm the action retains a backlink to its source note.
+10. Press `Ctrl/Command + K` to open Spotlight, search across items and Life Threads, then launch a 25-minute Focus Session from a result.
+11. Open **Settings → Privacy**, export the designed PDF report, and inspect its cover, summary metrics, grouped items, notes, and page numbers.
+12. Delete the temporary workspace from **Settings → Privacy**.
 
-Demo mode is intentionally isolated from authenticated accounts. New real accounts always start with an empty workspace.
+LifeInbox has no demo workspace or seeded account data. Every visible workspace is authenticated and backed by Appwrite.
 
 ## What is implemented
 
 - Appwrite email/password sign-up, login, session restore, recovery, and logout
-- Real empty workspaces with demo data isolated to explicit demo mode
+- Real empty workspaces with no seeded or demo data
 - Text, image, PDF, and browser-recorded voice capture
 - GPT-5.6 Terra Structured Outputs that split one capture into as many as 20 atomic items
 - Explicit **Save as note** capture mode with a permanent, searchable Notes library and full note bodies
@@ -81,7 +80,7 @@ flowchart LR
   X --> S
 ```
 
-The browser receives only public Appwrite identifiers. `OPENAI_API_KEY`, `OPS_SECRET`, and the one-time Appwrite bootstrap key never enter the client bundle. Appwrite Functions use scoped dynamic execution keys and every saved row/file is permissioned to its owner. File-backed extraction binds the submitted file to an owner-matched capture record before download, and original uploads are automatically removed after the deployment-wide 30-day retention period. Approved actions and permanent Notes remain until the user deletes them.
+The browser receives only public Appwrite identifiers. Login is verified by a same-origin gateway that stores the Appwrite session in an `HttpOnly`, `Secure`, `SameSite=Lax` cookie, preventing cross-site cookie restrictions from downgrading a signed-in user to Appwrite's guest role. `OPENAI_API_KEY`, `OPS_SECRET`, and the one-time Appwrite bootstrap key never enter the client bundle. Appwrite Functions use scoped dynamic execution keys and every saved row/file is permissioned to its owner. File-backed extraction binds the submitted file to an owner-matched capture record before download, and original uploads are automatically removed after the deployment-wide 30-day retention period. Approved actions and permanent Notes remain until the user deletes them.
 
 ## How GPT-5.6 is used
 
@@ -103,7 +102,7 @@ Codex was the primary engineering collaborator across the submission-period buil
 - Building and polishing the iOS-inspired white/lime landing page, responsive phone, tablet, desktop, and PWA experiences
 - Tracing live Appwrite execution failures to empty structured output and schema-unsafe persistence
 - Migrating the production model to GPT-5.6 Terra with high reasoning and hardening atomic decomposition, evidence validation, structured planning, parsing, and retry behavior
-- Separating demo state from real accounts and replacing fake dashboard values with real calculations
+- Removing demo state and replacing fake dashboard values with real calculations
 - Implementing batch review, persistent Life Threads, grounded citations, designed PDF export, deletion, and account cleanup
 - Running lint, builds, automated tests, production deployment, and full browser smoke tests
 
@@ -124,7 +123,7 @@ The dated commit history provides submission-period implementation evidence. The
 - Node.js 22.13 or newer
 - npm
 
-### Demo UI
+### Local UI
 
 ```bash
 git clone https://github.com/heytaha14/LifeInbox.git
@@ -133,7 +132,7 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:3000` and choose **Explore the demo**. This path supplies sample data and does not require Appwrite or OpenAI credentials.
+Open `http://localhost:3000`. Sign-up, persistence, capture intelligence, and Ask require the Appwrite and OpenAI setup below.
 
 ### Full Appwrite + OpenAI setup
 

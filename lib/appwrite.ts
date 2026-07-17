@@ -19,13 +19,30 @@ export const appwriteConfig = {
 };
 
 export const isAppwriteConfigured = Boolean(appwriteConfig.endpoint && appwriteConfig.projectId);
-const client = new Client();
-if (isAppwriteConfigured) client.setEndpoint(appwriteConfig.endpoint).setProject(appwriteConfig.projectId);
 
-export const account = new Account(client);
-export const databases = new Databases(client);
-export const storage = new Storage(client);
-export const appwriteFunctions = new Functions(client);
+const client = new Client();
+if (isAppwriteConfigured) {
+  const endpoint = typeof window === "undefined" ? appwriteConfig.endpoint : `${window.location.origin}/api/appwrite/v1`;
+  client.setEndpoint(endpoint).setProject(appwriteConfig.projectId);
+}
+
+const account = new Account(client);
+const databases = new Databases(client);
+const storage = new Storage(client);
+const appwriteFunctions = new Functions(client);
+
+async function createEmailSession(email: string, password: string): Promise<AuthUser> {
+  const response = await fetch("/api/session", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+  const payload = await response.json().catch(() => ({})) as { message?: string; user?: AuthUser };
+  if (!response.ok) throw new Error(payload.message || "LifeInbox could not create a secure session.");
+  if (!payload.user?.id || !payload.user.email) throw new Error("LifeInbox could not verify the Appwrite session.");
+  return payload.user;
+}
 
 export type AuthUser = { id: string; name: string; email: string };
 
@@ -42,8 +59,13 @@ function isGuestSessionError(error: unknown): boolean {
     || (message.includes("role: guests") && message.includes("missing scopes"));
 }
 
-function clearFallbackSession(): void {
+function clearLegacyFallbackSession(): void {
   if (typeof window !== "undefined") window.localStorage.removeItem("cookieFallback");
+}
+
+async function clearServerSession(): Promise<void> {
+  await fetch("/api/session", { method: "DELETE", credentials: "same-origin" });
+  clearLegacyFallbackSession();
 }
 
 const META_PREFIX = "__li_meta_v1__:";
@@ -126,33 +148,25 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
     const user = await account.get();
     return { id: user.$id, name: user.name || user.email.split("@")[0], email: user.email };
   } catch (error) {
-    if (isGuestSessionError(error)) clearFallbackSession();
+    if (isGuestSessionError(error)) await clearServerSession().catch(() => clearLegacyFallbackSession());
     return null;
   }
 }
 
 export async function signIn(email: string, password: string): Promise<AuthUser> {
-  // A fallback cookie from the pre-regional endpoint can make Appwrite treat a
-  // returning browser as a guest. Start login with a clean session handshake.
-  clearFallbackSession();
-  await account.createEmailPasswordSession(email, password);
-  const user = await account.get();
-  return { id: user.$id, name: user.name || email.split("@")[0], email };
+  await clearServerSession().catch(() => clearLegacyFallbackSession());
+  return createEmailSession(email, password);
 }
 
 export async function signUp(name: string, email: string, password: string): Promise<AuthUser> {
-  clearFallbackSession();
+  await clearServerSession().catch(() => clearLegacyFallbackSession());
   const user = await account.create({ userId: ID.unique(), email, password, name });
-  await account.createEmailPasswordSession(email, password);
-  return { id: user.$id, name: user.name || name, email };
+  const authenticatedUser = await createEmailSession(email, password);
+  return { id: authenticatedUser.id || user.$id, name: authenticatedUser.name || user.name || name, email };
 }
 
 export async function signOut(): Promise<void> {
-  try {
-    if (isAppwriteConfigured) await account.deleteSession({ sessionId: "current" });
-  } finally {
-    clearFallbackSession();
-  }
+  await clearServerSession();
 }
 
 export async function requestPasswordReset(email: string): Promise<void> {
@@ -419,7 +433,7 @@ export async function askOrExtract(route: "extract" | "ask" | "today-brief" | "r
     });
   } catch (error) {
     if (isGuestSessionError(error)) {
-      clearFallbackSession();
+      await clearServerSession().catch(() => clearLegacyFallbackSession());
       throw new Error("Your secure session expired. Log in again to reconnect LifeInbox AI.");
     }
     throw error;
