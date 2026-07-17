@@ -4,15 +4,18 @@ import { Account, Client, Databases, ExecutionMethod, Functions, ID, Permission,
 import type { LifeItem, LifeThread } from "./lifeinbox";
 
 export const appwriteConfig = {
-  endpoint: process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT ?? "",
-  projectId: process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID ?? "",
-  databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID ?? "lifeinbox",
-  capturesCollectionId: process.env.NEXT_PUBLIC_APPWRITE_CAPTURES_COLLECTION_ID ?? "captures",
-  actionsCollectionId: process.env.NEXT_PUBLIC_APPWRITE_ACTIONS_COLLECTION_ID ?? "actions",
-  threadsCollectionId: process.env.NEXT_PUBLIC_APPWRITE_THREADS_COLLECTION_ID ?? "threads",
-  bucketId: process.env.NEXT_PUBLIC_APPWRITE_BUCKET_ID ?? "inbox-files",
-  aiFunctionId: process.env.NEXT_PUBLIC_APPWRITE_AI_FUNCTION_ID ?? "",
-  opsFunctionId: process.env.NEXT_PUBLIC_APPWRITE_OPS_FUNCTION_ID ?? "",
+  // These are public Appwrite identifiers, not secrets. Keeping production-safe
+  // defaults prevents cloud source builds from silently disabling auth and AI
+  // when NEXT_PUBLIC_* values are not present in the build environment.
+  endpoint: process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT || "https://fra.cloud.appwrite.io/v1",
+  projectId: process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID || "6a572c3f0008220bd0cf",
+  databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || "lifeinbox",
+  capturesCollectionId: process.env.NEXT_PUBLIC_APPWRITE_CAPTURES_COLLECTION_ID || "captures",
+  actionsCollectionId: process.env.NEXT_PUBLIC_APPWRITE_ACTIONS_COLLECTION_ID || "actions",
+  threadsCollectionId: process.env.NEXT_PUBLIC_APPWRITE_THREADS_COLLECTION_ID || "threads",
+  bucketId: process.env.NEXT_PUBLIC_APPWRITE_BUCKET_ID || "inbox-files",
+  aiFunctionId: process.env.NEXT_PUBLIC_APPWRITE_AI_FUNCTION_ID || "ai-orchestrator",
+  opsFunctionId: process.env.NEXT_PUBLIC_APPWRITE_OPS_FUNCTION_ID || "ops",
 };
 
 export const isAppwriteConfigured = Boolean(appwriteConfig.endpoint && appwriteConfig.projectId);

@@ -38,6 +38,9 @@ test("keeps Appwrite and secrets behind explicit boundaries", async () => {
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
   ]);
   assert.match(client, /NEXT_PUBLIC_APPWRITE_PROJECT_ID/);
+  assert.match(client, /https:\/\/fra\.cloud\.appwrite\.io\/v1/);
+  assert.match(client, /6a572c3f0008220bd0cf/);
+  assert.match(client, /NEXT_PUBLIC_APPWRITE_AI_FUNCTION_ID \|\| "ai-orchestrator"/);
   assert.doesNotMatch(client, /OPENAI_API_KEY|APPWRITE_API_KEY/);
   assert.match(setup, /APPWRITE_API_KEY/);
   assert.match(orchestrator, /x-appwrite-user-id/i);
