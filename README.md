@@ -197,6 +197,7 @@ The production flow should be release-checked with a temporary account through s
 - [Appwrite Free operations](docs/APPWRITE_FREE.md)
 - [Operations runbook](docs/RUNBOOK.md)
 - [Build Week submission pack](docs/BUILD_WEEK_SUBMISSION.md)
+- [Judge demo video production pack](docs/DEMO_VIDEO_PRODUCTION.md)
 
 ## License
 

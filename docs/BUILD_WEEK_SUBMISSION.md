@@ -77,6 +77,8 @@ Next steps include opt-in calendar and email connectors, richer recurring remind
 
 The final video must be public on YouTube, under three minutes, and include voiceover explaining the project, GPT-5.6, and Codex. Record at a brisk but readable pace and avoid waiting on camera for network calls.
 
+For the production-ready 15-clip plan, exact 10-second voiceovers, screen-recording shot list, Omni prompts, editing specification, YouTube metadata, and final QA checklist, use [DEMO_VIDEO_PRODUCTION.md](DEMO_VIDEO_PRODUCTION.md).
+
 ### 0:00–0:18 — problem and product
 
 > Life admin arrives as screenshots, receipts, PDFs, voice notes, and thoughts with several actions tangled together. LifeInbox gives all of it one private place to land and turns the mess into clear next steps.

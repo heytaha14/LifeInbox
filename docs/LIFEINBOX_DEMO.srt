@@ -1,0 +1,74 @@
+1
+00:00:00,000 --> 00:00:10,000
+Life admin arrives as screenshots, receipts, voice notes, PDFs, and tangled thoughts.
+LifeInbox gives everything one calm, private place to land.
+
+2
+00:00:10,000 --> 00:00:20,000
+Every account begins truly empty. There is no demo workspace:
+each Appwrite record and file belongs only to the signed-in user.
+
+3
+00:00:20,000 --> 00:00:30,000
+One capture surface accepts text, images, PDFs, and voice.
+I can organize actions or deliberately keep information as a permanent note.
+
+4
+00:00:30,000 --> 00:00:40,000
+This single thought contains three intentions: renew insurance, email Maya, and book a dentist.
+I drop it in without organizing anything first.
+
+5
+00:00:40,000 --> 00:00:50,000
+GPT-5.6 Terra uses high reasoning and strict Structured Outputs
+to separate every intent into three small, independent, source-grounded items.
+
+6
+00:00:50,000 --> 00:01:00,000
+Each draft exposes its evidence, confidence, date, priority, and missing information.
+I can edit or remove anything before a single item is saved.
+
+7
+00:01:00,000 --> 00:01:10,000
+After approval, all three items persist in Appwrite, survive a refresh,
+and flow into Today and the Inbox without losing their source context.
+
+8
+00:01:10,000 --> 00:01:20,000
+Smart Focus reduces the day to three clear moves and a quiet focus session.
+Completed work stays searchable instead of disappearing.
+
+9
+00:01:20,000 --> 00:01:30,000
+Not everything is a task. Notes preserve complete reference information until I delete it,
+without polluting Today with fake outstanding work.
+
+10
+00:01:30,000 --> 00:01:40,000
+When information becomes actionable, I turn the note into a linked task.
+Life Threads keep the action, people, dates, and original context together.
+
+11
+00:01:40,000 --> 00:01:50,000
+Ask LifeInbox reasons only over my permissioned workspace.
+It recommends the next move, explains why, and returns citations instead of unsupported advice.
+
+12
+00:01:50,000 --> 00:02:00,000
+Every citation opens its exact source item. LifeInbox Spotlight also finds
+any task, note, person, or Thread without navigating through menus.
+
+13
+00:02:00,000 --> 00:02:10,000
+My data remains portable. LifeInbox exports a designed multipage PDF
+with metrics, grouped items, notes, status, confidence, and page numbers.
+
+14
+00:02:10,000 --> 00:02:20,000
+The same clean workspace adapts to desktop, tablet, and phone, installs as a PWA,
+keeps AI keys server-side, and supports complete deletion.
+
+15
+00:02:20,000 --> 00:02:30,000
+Codex helped turn my product direction into tested architecture, resilient AI, and a deployed experience.
+LifeInbox: drop it in, understand it, move on.
